@@ -12,7 +12,7 @@ from typing import Optional
 SUPPORTED_SUFFIXES = {".md", ".markdown", ".txt", ".html"}
 
 #: 装载规则变了就让索引缓存失效。否则 txt/html 改完代码也不会进入已有缓存。
-LOADER_VERSION = "loader-2"
+LOADER_VERSION = "loader-3"
 
 #: 文件名开头的编号就是 doc_id，与文件格式无关（契约 §0）。
 _DOC_ID = re.compile(r"^(KB-\d+)")
@@ -66,6 +66,7 @@ class Document:
             "doc_id": self.doc_id,
             "title": self.title,
             "type": self.doc_type,
+            "status": self.status,
             "state": self.status,
             "effective_from": self.effective_from.isoformat() if self.effective_from else None,
             "superseded_by": self.superseded_by,
@@ -80,11 +81,26 @@ class Document:
 
 
 _HTML_TITLE = re.compile(r"<title>(.*?)</title>", re.S | re.I)
+_HTML_SCRIPT_STYLE = re.compile(r"<(script|style)\b[^>]*>.*?</\1>", re.S | re.I)
+_HTML_TAG = re.compile(r"<[^>]+>")
 
 
 def decode_bytes(raw: bytes, path: Path, warnings: list[str]) -> str:
-    """统一按 UTF-8 读。个别老文件里有怪字符，忽略掉就行，不影响检索。"""
-    return raw.decode("utf-8", errors="ignore")
+    """先按 UTF-8 严格解码。失败再按 GBK，并记下告警。"""
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        warnings.append("非 UTF-8，已按 GBK 解码：%s" % path.name)
+        return raw.decode("gbk")
+
+
+def visible_html(raw_html: str) -> str:
+    """去掉 script、style 和标签，只留页面上能看见的文字。"""
+    text = _HTML_SCRIPT_STYLE.sub(" ", raw_html)
+    text = _HTML_TAG.sub(" ", text)
+    text = html_module.unescape(text)
+    lines = [" ".join(line.split()) for line in text.splitlines()]
+    return "\n".join(line for line in lines if line)
 
 
 def parse_front_matter(text: str) -> tuple[dict, str]:
@@ -179,10 +195,10 @@ def load_document(path: Path) -> Optional[Document]:
     if fmt == "md":
         meta, text = parse_front_matter(text)
     elif fmt == "html":
-        # html 直接按文本入库，标签也就那么几个，BM25 自己会忽略。
         match_title = _HTML_TITLE.search(text)
         html_title = html_module.unescape(match_title.group(1).strip()) if match_title else ""
         meta = {"title": html_title.split("-")[0].strip() or html_title}
+        text = visible_html(text)
 
     match = _DOC_ID.match(path.name)
     doc_id = str(meta.get("doc_id") or (match.group(1) if match else "")).strip()

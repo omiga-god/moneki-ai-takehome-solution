@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from .loader import Document
 
 #: 切块参数变了，索引缓存必须失效，所以写进缓存键里。
-CHUNKER_VERSION = "chunker-2"
+CHUNKER_VERSION = "chunker-3"
 
 CHUNK_SIZE = 300
 
@@ -35,26 +35,26 @@ class Chunk:
 
 
 def chunk_document(document: Document) -> list[Chunk]:
-    """一篇文档按固定长度切开，300 字一块。"""
+    """一篇文档按固定长度切开，300 字一块，末尾不足一块的也保留。"""
     text = document.text
+    if len(text) <= CHUNK_SIZE:
+        piece = text.strip() or document.title
+        return [
+            Chunk(
+                doc_id=document.doc_id,
+                chunk_id="%s#1" % document.doc_id,
+                text=piece,
+                source_text=piece,
+                heading=document.title,
+            )
+        ]
     chunks: list[Chunk] = []
-    for number, start in enumerate(range(0, len(text) - CHUNK_SIZE, CHUNK_SIZE), start=1):
+    for number, start in enumerate(range(0, len(text), CHUNK_SIZE), start=1):
         piece = text[start : start + CHUNK_SIZE]
         chunks.append(
             Chunk(
                 doc_id=document.doc_id,
                 chunk_id="%s#%d" % (document.doc_id, number),
-                text=piece,
-                source_text=piece,
-                heading=document.title,
-            )
-        )
-    if not chunks:
-        piece = text.strip() or document.title
-        chunks.append(
-            Chunk(
-                doc_id=document.doc_id,
-                chunk_id="%s#1" % document.doc_id,
                 text=piece,
                 source_text=piece,
                 heading=document.title,
