@@ -28,6 +28,17 @@ def test_metrics_summary_bad_date(client):
     assert response.status_code == 400
 
 
+def test_top_products_ok(client):
+    response = client.get(
+        "/api/metrics/top_products", params={"start": "2026-06-01", "end": "2026-06-30"}
+    )
+    assert response.status_code == 200
+    products = response.json()["products"]
+    assert 1 <= len(products) <= 10
+    assert products[0]["product_id"]
+    assert products[0]["net_revenue"] >= products[-1]["net_revenue"]
+
+
 def test_metrics_daily_ok(client):
     response = client.get(
         "/api/metrics/daily", params={"start": "2026-06-08", "end": "2026-06-12"}

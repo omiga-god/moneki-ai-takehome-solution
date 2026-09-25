@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
 import threading
 from datetime import date, timedelta
@@ -78,11 +79,16 @@ class DataTools:
         )
 
     def run_sql(self, sql: str) -> dict:
-        """执行一条 SQL。工具覆盖不到的查法，让模型自己写。"""
-        cursor = self.conn.execute(sql)
+        """只读查询。写入语句直接拒绝，也不提交事务。"""
+        text = (sql or "").strip()
+        if not re.match(r"(?is)^(select|with)\b", text) or re.search(
+            r"(?is)\b(insert|update|delete|drop|alter|create|replace|attach|detach|pragma|vacuum)\b",
+            text,
+        ):
+            return {"error": "只允许只读 SELECT", "sql": text, "rows": [], "row_count": 0}
+        cursor = self.conn.execute(text)
         rows = [dict(row) for row in cursor.fetchall()] if cursor.description else []
-        self.conn.commit()
-        return {"sql": sql, "rows": rows[:50], "row_count": len(rows)}
+        return {"sql": text, "rows": rows[:50], "row_count": len(rows)}
 
     def stores(self) -> list[dict]:
         return [dict(r) for r in self.conn.execute("SELECT * FROM stores ORDER BY store_id")]

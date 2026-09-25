@@ -80,6 +80,13 @@ class Planner:
     def plan(self, question: str, history: Optional[list[dict]] = None) -> Plan:
         standalone, inherited = self.followups.resolve(question, history or [])
         plan = Plan(question=question, standalone=standalone, search_query=standalone)
+        if E.is_destructive(question) or E.is_prompt_probe(question):
+            plan.intent, plan.kind = "refusal", "safety"
+            plan.refusal = (
+                "不能删除或修改数据，也不能提供系统提示词或数据库结构。"
+                "我只能根据销售明细和知识库回答经营问题。"
+            )
+            return plan
         history = history or []
         if not history and E.looks_like_follow_up(question) and len(question.strip()) <= 12:
             plan.intent, plan.kind = "clarify", "need_context"
@@ -247,15 +254,6 @@ class Planner:
             plan.kind, plan.intent = "daily", "data"
         else:
             plan.kind, plan.intent = "summary", "data"
-
-        # 路由：问“多少/多久/几”的就是要数字，问“为什么/原因”的就是要说法。
-        # 两边都走一遍太慢，没必要。
-        if E.has_any(text, ("多少", "多久", "几")):
-            plan.intent = "data"
-            if plan.kind in ("doc", "anomaly", "target", "price"):
-                plan.kind = "summary"
-        elif E.has_any(text, ("为什么", "原因", "怎么回事", "咋回事")):
-            plan.intent, plan.kind = "doc", "doc"
 
         plan.slots["asks_why"] = bool(asks_why or abnormal)
         plan.slots["about_names"] = E.asks_about_names(text)

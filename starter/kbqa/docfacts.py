@@ -266,6 +266,29 @@ class DocFacts:
         for unit in self.units(doc_id):
             if unit.kind == "table" and unit.text == line.strip():
                 return unit.header
+        return self._header_above(doc_id, line)
+
+    def _header_above(self, doc_id: str, line: str) -> list[str]:
+        """切块没有标成表格时，向上找到分隔线，再读它上一行的列名。"""
+        target = line.strip()
+        lines = self.index.texts.get(doc_id, "").splitlines()
+        for index, raw in enumerate(lines):
+            if raw.strip() != target:
+                continue
+            cursor = index - 1
+            while cursor >= 1:
+                stripped = lines[cursor].strip()
+                if not stripped:
+                    cursor -= 1
+                    continue
+                if re.fullmatch(r"[\s|:.-]+", stripped) and "-" in stripped:
+                    header = lines[cursor - 1].strip()
+                    if header.startswith("|"):
+                        return [cell.strip() for cell in header.strip("|").split("|")]
+                    return []
+                if not stripped.startswith("|"):
+                    break
+                cursor -= 1
         return []
 
     def render(self, doc_id: str, sentence: str) -> str:

@@ -74,7 +74,10 @@ class Answerer(HybridAnswers):
         candidates = self._candidates(plan, result, require_value=True)
         if not candidates:
             candidates = self._candidates(plan, result, require_value=False)
-        candidates.sort(key=lambda item: (round(item["score"], 2), item["effective_from"]))
+        candidates.sort(
+            key=lambda item: (round(item["score"], 2), item["effective_from"]),
+            reverse=True,
+        )
         lines: list[str] = []
         citations: list[dict] = []
         used_terms: set[str] = set()
@@ -310,14 +313,6 @@ class Answerer(HybridAnswers):
 
     # -- 纯文档 -----------------------------------------------------------------
 
-    def _context(self, result: SearchResult) -> str:
-        """把命中的那篇文档原样拼进来，答案就在里面，别漏了。"""
-        blocks: list[str] = []
-        for hit in result.hits[:1]:
-            for chunk in self.retriever.index.chunks_of(hit.doc_id):
-                blocks.append(chunk.text)
-        return ("\n".join(blocks) + "\n") if blocks else ""
-
     def _should_refuse(self, plan: Plan, confidence: float, top_score: float) -> Optional[str]:
         """三个信号一起判断“知识库里到底有没有这件事”。"""
         vocab = self.facts.vocab_coverage(plan.slots.get("clean_question") or plan.standalone)
@@ -351,4 +346,4 @@ class Answerer(HybridAnswers):
                 answer_type="clarify",
                 notes=["检索最高分 %.1f，且问题里没有指标、时间或门店" % top_score],
             )
-        return Answer(answer=self._context(result) + body, answer_type="doc", citations=citations)
+        return Answer(answer=body, answer_type="doc", citations=citations)

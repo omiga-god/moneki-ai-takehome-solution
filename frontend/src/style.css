@@ -18,4 +18,26 @@ h1 { font-size: clamp(32px, 4vw, 52px); line-height: 1.1; letter-spacing: -.04em
 .card-heading h2 { margin: 0; font-size: 18px; }
 .card-heading span { color: #2d8069; font-size: 12px; background: #edf6ef; border-radius: 999px; padding: 5px 9px; }
 .placeholder { display: grid; place-items: center; min-height: 145px; border: 1px dashed #d3ded5; border-radius: 12px; margin: 20px 0 0; color: #87948e; text-align: center; padding: 20px; font-size: 14px; }
+.filter-bar label { display: flex; flex-direction: column; gap: 6px; color: #82918b; font-size: 12px; min-width: 180px; }
+.filter-bar input, .filter-bar select, .ask input { border: 1px solid #d3ded5; border-radius: 10px; padding: 8px 10px; font: inherit; color: #19302b; background: #fff; }
+.summary-line, .error { margin: 0 0 16px; font-size: 14px; }
+.error { color: #9a3b32; }
+.chart { height: 240px; margin-top: 12px; }
+.rank, .quality { margin: 16px 0 0; padding: 0; }
+.rank { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.rank li, .quality div { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+.quality { display: flex; flex-direction: column; gap: 8px; }
+.quality dt { color: #697a73; }
+.quality dd { margin: 0; font-weight: 700; }
+.chat { max-height: 320px; overflow: auto; display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.chat article { border-radius: 12px; padding: 10px 12px; font-size: 14px; }
+.chat .user { background: #edf6ef; }
+.chat .assistant { background: #f7f8f4; }
+.chat p, .chat ul { margin: 0; }
+.chat ul { margin-top: 8px; padding-left: 18px; color: #426556; }
+.ask { display: flex; gap: 8px; margin-top: 12px; }
+.ask input { flex: 1; }
+.ask button { border: 0; border-radius: 10px; background: #267562; color: #fff; padding: 8px 14px; font: inherit; }
+.trace { max-height: 360px; overflow: auto; font-size: 12px; white-space: pre-wrap; background: #f7f8f4; border-radius: 12px; padding: 12px; }
+.muted { color: #87948e; }
 @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } .wide { grid-column: auto; } .header, .filter-bar { flex-direction: column; } .shell { padding: 24px 16px; } }

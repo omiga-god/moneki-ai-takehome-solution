@@ -27,6 +27,31 @@ export interface DailyPoint {
   aov: number | null
 }
 
+export interface TopProduct {
+  product_id: string
+  product_name: string
+  product_category: string
+  net_revenue: number
+  orders: number
+  qty: number
+}
+
+export interface StoreOption {
+  store_id: string
+  store_name: string
+}
+
+export interface DataQuality {
+  cleaning_report: {
+    raw_rows: number
+    kept_rows: number
+    kept_sales_rows: number
+    kept_refund_rows: number
+    removed: Record<string, number>
+  }
+  data_period: { start: string; end: string }
+  kb_warnings: string[]
+}
 export interface RetrievalResult {
   doc_id: string
   chunk_id: string
@@ -68,9 +93,21 @@ function query(filter: MetricsFilter): string {
 }
 
 export const api = {
-  health: () => getJson<{ status: string; llm_mode: 'live' | 'mock'; kb_docs: number; kb_chunks: number; valid_sales_rows: number }>('/api/health'),
+  health: () => getJson<{
+    status: string
+    llm_mode: 'live' | 'mock'
+    kb_docs: number
+    kb_chunks: number
+    valid_sales_rows: number
+    today: string
+    data_period: { start: string; end: string }
+  }>('/api/health'),
   summary: (filter: MetricsFilter) => getJson<Summary>(`/api/metrics/summary?${query(filter)}`),
   daily: (filter: MetricsFilter) => getJson<{ days: DailyPoint[] }>(`/api/metrics/daily?${query(filter)}`),
+  topProducts: (filter: MetricsFilter) =>
+    getJson<{ products: TopProduct[] }>(`/api/metrics/top_products?${query(filter)}&limit=10`),
+  stores: () => getJson<{ stores: StoreOption[] }>('/api/stores'),
+  dataQuality: () => getJson<DataQuality>('/api/data_quality'),
   trace: (id: string) => getJson<Record<string, unknown>>(`/api/trace/${encodeURIComponent(id)}`),
   retrieve: async (queryText: string, topK = 5): Promise<{ results: RetrievalResult[] }> => {
     const response = await fetch('/api/retrieve', {
