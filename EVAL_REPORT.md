@@ -36,6 +36,18 @@
 
 以上仅是评测现象。具体根因、验证实验、修复 commit 和红绿测试应在 `DEBUG_LOG.md` 中逐项补充。
 
+## 清洗与指标阶段（不是全量复测）
+
+- 运行时间：2026-09-26 01:13:03（报告内时间）
+- 代码 commit：`75e466c`
+- 命令：先在 `starter/` 执行 `.\.venv\Scripts\python.exe -m kbqa.rebuild`，再启动 `uvicorn kbqa.server:app --host 127.0.0.1 --port 8000`，然后在仓库根目录分别执行 `--only metrics` 和 `--only health`
+- 模型与 Key：未配置，`llm_mode=mock`
+- metrics：**6.00 / 6.00**，M01–M06 全绿
+- health：**1.00 / 1.00**，N01 通过。快照为 `kb_docs=35`、`kb_chunks=111`、`valid_sales_rows=18290`、`data_period=2026-05-01..2026-08-31`
+- 未重跑其余类别，因此不能把这两项加进基线总分当作新的 100 分结果
+
+原始报告在 `starter/var/eval-metrics/` 与 `starter/var/eval-health/`，该目录不入库。
+
 ## 最终版本
 
 - 命令：待填写
