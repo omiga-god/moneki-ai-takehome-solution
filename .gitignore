@@ -1,0 +1,13 @@
+.env
+.venv/
+node_modules/
+frontend/dist/
+starter/.venv/
+starter/var/
+starter/.cache/
+report.json
+report.md
+llm_traffic.jsonl
+work/
+*.pyc
+__pycache__/
