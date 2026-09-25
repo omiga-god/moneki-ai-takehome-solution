@@ -1,6 +1,7 @@
 param(
     [string]$SourceDir = "",
-    [string]$RepoUrl = "https://github.com/MorrisPRC/moneki-ai-takehome.git"
+    [string]$RepoUrl = "https://github.com/MorrisPRC/moneki-ai-takehome.git",
+    [string]$ProxyUrl = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -12,7 +13,11 @@ if (-not $source) {
     New-Item -ItemType Directory -Force -Path $workDir | Out-Null
     $source = Join-Path $workDir "upstream"
     if (-not (Test-Path -LiteralPath $source)) {
-        git clone --depth 1 $RepoUrl $source
+        if ($ProxyUrl) {
+            git -c "http.proxy=$ProxyUrl" clone --depth 1 $RepoUrl $source
+        } else {
+            git clone --depth 1 $RepoUrl $source
+        }
         if ($LASTEXITCODE -ne 0) { throw "Git clone failed. Download the official ZIP and retry with -SourceDir." }
     }
 }

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>常见问题 FAQ - 合味餐饮</title>
+<meta name="description" content="合味餐饮门店常见问题解答：发票、宠物、Wi-Fi、外卖平台、预订、遗失物品。">
+<meta name="keywords" content="FAQ,常见问题,发票,Wi-Fi,外卖,宠物">
+<link rel="icon" href="/static/img/favicon.ico">
+<link rel="stylesheet" href="/static/css/base.css">
+<style>
+  :root { --brand: #b4432a; --ink: #23201d; --muted: #7b756e; --line: #e8e3dc; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "PingFang SC", "Microsoft YaHei", Helvetica, Arial, sans-serif; color: var(--ink); background: #fffdfa; line-height: 1.75; }
+  header.site { border-bottom: 1px solid var(--line); position: sticky; top: 0; background: #fffdfa; z-index: 10; }
+  .bar { max-width: 960px; margin: 0 auto; padding: 14px 20px; display: flex; align-items: center; gap: 28px; }
+  .logo { font-weight: 700; letter-spacing: .5px; color: var(--brand); text-decoration: none; }
+  nav a { color: var(--ink); text-decoration: none; font-size: 14px; }
+  nav a:hover { color: var(--brand); }
+  nav a.on { color: var(--brand); border-bottom: 2px solid var(--brand); padding-bottom: 4px; }
+  main { max-width: 960px; margin: 0 auto; padding: 28px 20px 60px; }
+  h1 { font-size: 26px; margin: 8px 0 4px; }
+  .updated { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+  .faq { border-top: 1px solid var(--line); padding: 18px 0; }
+  .faq h2 { font-size: 17px; margin: 0 0 8px; }
+  .faq p { margin: 0 0 6px; }
+  .tag { display: inline-block; font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 10px; padding: 1px 8px; margin-right: 6px; }
+  footer.site { border-top: 1px solid var(--line); background: #f7f3ed; }
+  .foot { max-width: 960px; margin: 0 auto; padding: 22px 20px; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 10px 22px; }
+  .foot a { color: var(--muted); text-decoration: none; }
+  .foot a:hover { text-decoration: underline; }
+  @media (max-width: 600px) { .bar { gap: 14px; flex-wrap: wrap; } }
+</style>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function hwTrack(evt, props) {
+    try {
+      window.dataLayer.push(Object.assign({ event: evt, ts: Date.now(), page: "faq" }, props || {}));
+    } catch (e) { /* noop */ }
+  }
+  (function () {
+    var t0 = Date.now();
+    document.addEventListener("DOMContentLoaded", function () {
+      hwTrack("page_view", { referrer: document.referrer, render_ms: Date.now() - t0 });
+      var items = document.querySelectorAll(".faq h2");
+      for (var i = 0; i < items.length; i++) {
+        (function (el, idx) {
+          el.addEventListener("click", function () { hwTrack("faq_open", { index: idx, title: el.textContent }); });
+        })(items[i], i);
+      }
+    });
+    window.addEventListener("beforeunload", function () {
+      hwTrack("page_leave", { dwell_ms: Date.now() - t0 });
+    });
+  })();
+</script>
+</head>
+<body>
+
+<header class="site">
+  <div class="bar">
+    <a class="logo" href="/">合味餐饮</a>
+    <nav>
+      <a href="/">首页</a>
+      <a href="/stores">门店</a>
+      <a href="/menu">菜单</a>
+      <a href="/member">会员</a>
+      <a href="/faq" class="on">常见问题</a>
+      <a href="/join">加盟合作</a>
+      <a href="/about">关于我们</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <h1>常见问题 FAQ</h1>
+  <p class="updated">最后更新：2026-03-01 &nbsp;|&nbsp; 维护：总部市场部 &nbsp;|&nbsp; 适用范围：Super Souper、Makai Poke、Juicy Bao Bao、Arigato Sando、Super Tetsudo 五家门店</p>
+
+  <div class="faq">
+    <h2>怎么开发票？</h2>
+    <p><span class="tag">发票</span><span class="tag">小程序</span></p>
+    <p>发票在小程序“我的订单”里自助开具。找到对应订单点“开发票”，填抬头和税号后提交，电子发票会发到填写的邮箱，通常几分钟内到，最长不超过 24 小时。</p>
+    <p>门店不提供纸质发票，也不代开。订单超过 90 天的无法自助开具，请联系客服处理。</p>
+  </div>
+
+  <div class="faq">
+    <h2>可以带宠物进店吗？</h2>
+    <p><span class="tag">宠物</span><span class="tag">就餐规则</span></p>
+    <p>宠物仅限户外座位，室内区域不能带宠物进入，导盲犬等工作犬除外。</p>
+    <p>在户外座位请给宠物牵绳，不要让宠物上椅子和桌面。部分门店没有户外座位，具体以门店现场为准。</p>
+  </div>
+
+  <div class="faq">
+    <h2>店里有 Wi-Fi 吗？密码是多少？</h2>
+    <p><span class="tag">Wi-Fi</span></p>
+    <p>五家门店都有免费 Wi-Fi。Wi-Fi 密码见小票底部，每张小票上都会印，密码会定期更换，以最新一张小票为准。</p>
+    <p>没有小票的话可以问店员。网络由商场或运营商提供，高峰时段速度可能受影响。</p>
+  </div>
+
+  <div class="faq">
+    <h2>你们上了哪些外卖平台？</h2>
+    <p><span class="tag">外卖</span></p>
+    <p>外卖平台为美团与饿了么，五家门店都已上线。除此之外还可以在小程序里下自营外卖单。</p>
+    <p>平台上的活动和优惠由平台规则决定，可能和门店、小程序不一致，以下单时页面显示的为准。</p>
+  </div>
+
+  <div class="faq">
+    <h2>可以预订座位吗？</h2>
+    <p><span class="tag">预订</span></p>
+    <p>小桌不接受预订，到店取号。8 人以上的聚餐可以提前一天电话预订，由门店安排拼桌，门店电话见“门店”页面。</p>
+  </div>
+
+  <div class="faq">
+    <h2>东西落在店里了怎么办？</h2>
+    <p><span class="tag">失物</span></p>
+    <p>请尽快联系门店。拾到的物品由门店登记保管 7 天，贵重物品会交商场服务台或就近派出所，领取时需要说明物品特征。</p>
+  </div>
+
+  <div class="faq">
+    <h2>可以用会员储值余额在外卖平台付款吗？</h2>
+    <p><span class="tag">会员</span></p>
+    <p>不可以。第三方外卖平台的订单只能用平台自己的支付方式，会员储值余额可以在门店堂食、自提和小程序自营外卖使用。</p>
+  </div>
+</main>
+
+<footer class="site">
+  <div class="foot">
+    <span>&copy; 2026 合味餐饮管理（上海）有限公司</span>
+    <a href="/about">关于我们</a>
+    <a href="/join">加盟合作</a>
+    <a href="/jobs">人才招聘</a>
+    <a href="/press">媒体中心</a>
+    <a href="/privacy">隐私政策</a>
+    <a href="/terms">用户协议</a>
+    <a href="/sitemap.xml">网站地图</a>
+    <span>沪ICP备 20260318 号-1</span>
+    <span>沪公网安备 31010402000000 号</span>
+    <span>客服热线 021-5555-0100（09:00-21:00）</span>
+  </div>
+</footer>
+
+<script src="/static/js/hw-analytics.min.js" async></script>
+<script>
+  (function () {
+    var s = document.createElement("script");
+    s.async = true;
+    s.src = "/static/js/consent-banner.js?v=20260301";
+    document.body.appendChild(s);
+  })();
+</script>
+</body>
+</html>

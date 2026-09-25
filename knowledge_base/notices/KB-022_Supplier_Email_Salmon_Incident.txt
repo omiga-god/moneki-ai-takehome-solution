@@ -1,0 +1,70 @@
+From: Daniel Whitcombe <d.whitcombe@tasmancoldchain.example>
+To: Xu Min <xu.min@hewei-catering.example>
+Cc: Procurement Team <procurement@hewei-catering.example>; Lu Songping <lu.songping@hewei-catering.example>
+Date: Sat, 04 Jul 2026 19:42:11 +0800
+Subject: [Tasman Cold Chain Seafood] Salmon delivery of 2026-07-04 - reefer failure, all 3 pallets rejected
+
+Dear Xu Min,
+
+Following our call this afternoon, I am confirming in writing what happened to
+the salmon shipment that was scheduled to reach your central kitchen on the
+morning of 4 July 2026, and what we are doing about it.
+
+1. WHAT HAPPENED
+
+The consignment left our Shanghai cold store at 21:10 on 3 July 2026 in truck
+HU-8842. The refrigeration unit on that truck failed in transit during the
+night. The driver noticed the alarm only at the second rest stop, and by then
+the on-board logger had recorded a cargo temperature above 8 degrees Celsius
+for 6 hours continuously. Our standard for this product is 0 to 4 degrees
+Celsius at all times, so the cold chain was broken well beyond any tolerance
+we are willing to argue about.
+
+2. WHAT WE DID
+
+Your receiving team measured the core temperature on arrival and refused the
+delivery on the spot. That was the correct decision and we fully support it.
+All 3 pallets were rejected and returned to us; none of the product was
+re-routed to any other customer. The whole consignment has been destroyed and
+the destruction certificate is attached to this mail.
+
+3. COMMERCIAL SETTLEMENT
+
+We will issue a credit note of CNY 8,600 against your July account. This
+covers the full value of the rejected consignment. There is nothing for you to
+pay and nothing for you to claim separately. The credit note will be raised on
+6 July and should appear on your statement the same week.
+
+4. SUPPLY RESUMPTION
+
+We cannot cover your salmon requirement from the current stock rotation. The
+next qualified lot arrives in our cold store on 11 July, and after quality
+release we will be able to deliver to you again from 13 July 2026. I know this
+leaves a gap of about a week in your menu and I am sorry for it. Please treat
+13 July as firm; I will call you myself if anything moves.
+
+5. CORRECTIVE ACTION
+
+Effective immediately, every truck carrying product to your stores will run two
+independent temperature loggers instead of one, with the second logger placed
+inside the pallet rather than in the cabin. Readings will be sent to your
+procurement mailbox before the truck leaves our yard and again on arrival. The
+failed unit on HU-8842 has been taken out of service pending overhaul, and we
+have brought forward the servicing schedule for the rest of the fleet.
+
+I am available on my mobile all weekend if you want to go through any of this.
+Again, my apologies for the disruption to your stores.
+
+Best regards,
+
+Daniel Whitcombe
+Key Account Manager
+Tasman Cold Chain Seafood
+Mobile: +86 138 5555 0212
+Office: 021-5555-0201
+d.whitcombe@tasmancoldchain.example
+
+--
+This message and any attachments are confidential and intended solely for the
+addressees. If you have received it in error, please notify the sender and
+delete it from your system.
