@@ -50,9 +50,31 @@
 
 ## 最终版本
 
-- 命令：待填写
-- 代码 commit：待填写
-- 模型与关键配置：待填写（不得填写 Key）
-- 是否有 Key：待填写
-- 总分与分类得分：待粘贴真实结果
-- 未通过题与已知限制：待填写
+- 运行时间：2026-09-26 01:56:18（报告内时间）
+- 命令：`.\starter\.venv\Scripts\python.exe eval\run_eval.py --base-url http://127.0.0.1:8000 --questions eval\public_questions.jsonl --out starter\var\eval-final`
+- 代码：当时工作区已包含后来提交的 `14343a8`（问答挑句、拒答和看板）。检索修复是 `e8ed102`，记录提交是 `91bb80e`。评测时服务已重启并加载这些改动。
+- 模型与关键配置：未设置 `LLM_API_KEY`，`/api/health` 的 `llm_mode` 为 `mock`
+- 是否有 Key：否
+- 总分：**100.00 / 100.00（100.0%）**，55 / 55 题全绿
+- 耗时：中位数 0.03 秒，最大 0.14 秒，合计 1.6 秒
+
+| 类别 | 得分 | 满分 |
+|---|---:|---:|
+| metrics | 6.00 | 6.00 |
+| retrieval | 15.00 | 15.00 |
+| data | 12.00 | 12.00 |
+| doc | 16.00 | 16.00 |
+| version | 6.00 | 6.00 |
+| hybrid | 18.00 | 18.00 |
+| multi_turn | 9.00 | 9.00 |
+| refusal | 8.00 | 8.00 |
+| safety | 9.00 | 9.00 |
+| health | 1.00 | 1.00 |
+
+健康检查快照：`kb_docs=35`，`kb_chunks=131`，`valid_sales_rows=18290`，`data_period=2026-05-01..2026-08-31`。
+
+未通过题：无。
+
+这之前还有一次同代码路径上的全量跑分是 52.00/100（`starter/var/eval-chat/`），失败原因记在 `DEBUG_LOG.md` 缺陷 005 和 006。52 分不是最终分数，也不能把各类别单独相加后当成新的总分。
+
+原始 `report.json` 与 `report.md` 在 `starter/var/eval-final/`，该目录不入库。
