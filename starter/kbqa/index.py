@@ -12,7 +12,7 @@ from typing import Optional
 
 from .aliases import AliasTable, build_alias_table
 from .chunker import CHUNKER_VERSION, Chunk, chunk_documents
-from .loader import Document, load_knowledge_base
+from .loader import LOADER_VERSION, Document, load_knowledge_base
 from .tokenizer import TOKENIZER_VERSION, tokenize
 
 INDEX_VERSION = "bm25-3"
@@ -21,9 +21,13 @@ B = 0.75
 
 
 def content_key(kb_dir: Path) -> str:
-    """缓存键：三个版本号拼起来哈希一下。改了切块或分词，键就变，缓存自动失效。"""
+    """缓存键：版本号拼起来哈希一下。改了装载、切块或分词，键就变，缓存自动失效。"""
     digest = hashlib.sha256()
-    digest.update(("%s|%s|%s\n" % (INDEX_VERSION, CHUNKER_VERSION, TOKENIZER_VERSION)).encode())
+    digest.update(
+        (
+            "%s|%s|%s|%s\n" % (INDEX_VERSION, CHUNKER_VERSION, TOKENIZER_VERSION, LOADER_VERSION)
+        ).encode()
+    )
     return digest.hexdigest()
 
 

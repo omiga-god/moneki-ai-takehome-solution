@@ -9,7 +9,10 @@ from datetime import date
 from pathlib import Path
 from typing import Optional
 
-SUPPORTED_SUFFIXES = {".md", ".markdown"}
+SUPPORTED_SUFFIXES = {".md", ".markdown", ".txt", ".html"}
+
+#: 装载规则变了就让索引缓存失效。否则 txt/html 改完代码也不会进入已有缓存。
+LOADER_VERSION = "loader-2"
 
 #: 文件名开头的编号就是 doc_id，与文件格式无关（契约 §0）。
 _DOC_ID = re.compile(r"^(KB-\d+)")

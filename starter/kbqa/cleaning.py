@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from dataclasses import dataclass, field
-from decimal import Decimal, InvalidOperation
+from datetime import date
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 from typing import Iterable, Optional
 
-#: 金额里的 `¥` 去掉再按数字解析。
-_CURRENCY = str.maketrans("", "", "¥￥ \t　")
+_ISO_DATE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
+_SLASH_DATE = re.compile(r"^(\d{4})/(\d{1,2})/(\d{1,2})$")
+_DMY_DATE = re.compile(r"^(\d{1,2})-(\d{1,2})-(\d{4})$")
 
 REMOVAL_REASONS = (
     "1_unparseable_date",
@@ -22,30 +25,58 @@ REMOVAL_REASONS = (
 )
 
 
+def parse_date(value: Optional[str]) -> Optional[str]:
+    """KB-001 §2.2：三种格式都变成 `YYYY-MM-DD`。`DD-MM-YYYY` 日在前。"""
+    text = (value or "").strip()
+    if not text:
+        return None
+    iso = _ISO_DATE.fullmatch(text)
+    slash = _SLASH_DATE.fullmatch(text)
+    dmy = _DMY_DATE.fullmatch(text)
+    if iso:
+        year, month, day = (int(iso.group(1)), int(iso.group(2)), int(iso.group(3)))
+    elif slash:
+        year, month, day = (int(slash.group(1)), int(slash.group(2)), int(slash.group(3)))
+    elif dmy:
+        day, month, year = (int(dmy.group(1)), int(dmy.group(2)), int(dmy.group(3)))
+    else:
+        return None
+    try:
+        return date(year, month, day).isoformat()
+    except ValueError:
+        return None
+
+
 def parse_amount(value: Optional[str]) -> tuple[Optional[int], str]:
     """返回 (分, 状态)。状态取值：`ok`、`empty`、`bad`。
 
-    KB-001 §2.3 与 §3.2：`¥38.00` 与 `38.00` 是同一个金额；空金额直接剔除，**不回填**。
+    KB-001 §2.3 与 §3.2：去掉 `¥` 前缀和首尾空白后再解析。
+    `¥38.00` 与 `38.00` 是同一个金额；空金额或无法解析的金额直接剔除，不回填。
     """
-    text = (value or "").translate(_CURRENCY)
+    text = (value or "").strip()
+    if text[:1] in "¥￥":
+        text = text[1:].strip()
     if not text:
         return None, "empty"
     try:
-        cents = int((Decimal(text) * 100).to_integral_value())
+        cents = (Decimal(text) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
     except (InvalidOperation, ValueError):
         return None, "bad"
-    return cents, "ok"
+    return int(cents), "ok"
 
 
 def parse_qty(value: Optional[str]) -> Optional[int]:
-    """KB-001 §2.4：按整数解析。解析不了的按 0 处理，会被 §3.3 剔除。"""
+    """KB-001 §2.4：按整数解析。空值、小数和非数字返回 None，由 §3.3 剔除。"""
     text = (value or "").strip()
     if not text:
         return None
     try:
-        return int(Decimal(text))
+        number = Decimal(text)
     except (InvalidOperation, ValueError):
         return None
+    if number != number.to_integral_value():
+        return None
+    return int(number)
 
 
 @dataclass
@@ -74,31 +105,51 @@ def open_readonly(path: Path) -> sqlite3.Connection:
     return conn
 
 
-def clean_rows(rows: Iterable[sqlite3.Row]) -> tuple[list[tuple], CleaningReport]:
-    """把 sales 原样搬过来。金额解析不了的按 0，日期照抄，查询的时候直接比字符串。"""
+def clean_rows(
+    rows: Iterable[sqlite3.Row], store_ids: set[str], product_ids: set[str]
+) -> tuple[list[tuple], CleaningReport]:
+    """按 KB-001 §2–§3 先规范化，再按固定顺序剔除。同一行只记第一条命中的原因。"""
     report = CleaningReport()
     kept: list[tuple] = []
+    seen: set[tuple] = set()
     for row in rows:
         report.raw_rows += 1
+        parsed_date = parse_date(row["date"])
+        if parsed_date is None:
+            report.removed["1_unparseable_date"] += 1
+            continue
         cents, status = parse_amount(row["amount"])
         if status != "ok":
-            cents = 0
-        qty = parse_qty(row["qty"]) or 0
-        kept.append(
-            (
-                (row["order_id"] or "").strip(),
-                row["date"],
-                row["store_id"],
-                row["product_id"],
-                qty,
-                cents,
-                (row["payment"] or "").strip(),
-                1 if cents < 0 else 0,
-            )
-        )
+            report.removed["2_empty_amount"] += 1
+            if status == "bad":
+                report.note_unparseable_amount += 1
+            continue
+        qty = parse_qty(row["qty"])
+        if qty is None or qty <= 0:
+            report.removed["3_qty_le_zero"] += 1
+            continue
+        store_id = (row["store_id"] or "").strip().upper()
+        if store_id not in store_ids:
+            report.removed["4_store_not_in_stores"] += 1
+            continue
+        product_id = (row["product_id"] or "").strip().upper()
+        if product_id not in product_ids:
+            report.removed["5_product_not_in_products"] += 1
+            continue
+        order_id = (row["order_id"] or "").strip()
+        payment = (row["payment"] or "").strip()
+        key = (order_id, parsed_date, store_id, product_id, qty, cents, payment)
+        if key in seen:
+            report.removed["6_duplicate_row"] += 1
+            continue
+        seen.add(key)
+        is_refund = 1 if cents < 0 else 0
+        kept.append((order_id, parsed_date, store_id, product_id, qty, cents, payment, is_refund))
+        if cents < 0:
+            report.kept_refund_rows += 1
+        elif cents > 0:
+            report.kept_sales_rows += 1
     report.kept_rows = len(kept)
-    report.kept_refund_rows = sum(1 for row in kept if row[-1])
-    report.kept_sales_rows = report.kept_rows - report.kept_refund_rows
     return kept, report
 
 
@@ -130,8 +181,12 @@ def build_clean_db(source: Path, target: Path) -> CleaningReport:
                 "SELECT product_id, product_name, product_category, unit_price FROM products"
             )
         ]
+        store_ids = {(row[0] or "").strip().upper() for row in stores}
+        product_ids = {(row[0] or "").strip().upper() for row in products}
         rows, report = clean_rows(
-            src.execute("SELECT order_id, date, store_id, product_id, qty, amount, payment FROM sales")
+            src.execute("SELECT order_id, date, store_id, product_id, qty, amount, payment FROM sales"),
+            store_ids,
+            product_ids,
         )
     finally:
         src.close()

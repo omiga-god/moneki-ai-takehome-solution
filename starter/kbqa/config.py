@@ -48,6 +48,10 @@ class Settings:
     @property
     def index_path(self) -> Path:
         # 索引缓存跟着仓库走，clone 下来就能直接起服务，不用等建索引。
+        # INDEX_PATH 只给测试隔离缓存，正式启动不需要设置。
+        raw = os.environ.get("INDEX_PATH")
+        if raw:
+            return Path(raw).expanduser().resolve()
         return PROJECT_DIR / ".cache" / "index.json"
 
     @property
