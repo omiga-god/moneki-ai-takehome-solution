@@ -68,6 +68,16 @@
 
 metrics 6.00/6.00，health 1.00/1.00。没有重跑其余公开题，总分仍不能从这两项外推。
 
+## 缺陷 004：中文检索、索引缓存和版本筛选对不上文档
+
+- 现象：清洗阶段之后没有重跑 retrieval。代码审查能看到：中文按空白切词，缓存键不含文件字节，HTML 连同 script 入库，GBK 用 UTF-8 忽略错误解码，超长文档丢掉最后一块，已废止版本在取满 top-k 之后才剔除，命中的 `doc_id` 会被改成别的文档。会话历史也不分 `session_id`。
+- 验证：修复前 `pytest tests/test_retrieval.py -q --tb=line` 为 8 failed。失败包括无空格中文问句命中先出现的 `KB-700` 而不是正文所在的 `KB-701`；改文件后缓存仍是旧正文；`content_key` 在字节变化后不变；HTML 仍含 `TRACKER_SECRET`；GBK 文件读出乱码；现行查询的 top-5 仍含已废止的 `KB-810`；650 字之后的 `TAILMARKER` 不在任何切块里；两个 session 读到同一份历史。
+- 根因：`tokenize` 只做 `split()`。`content_key` 只哈希规则版本。`decode_bytes` 使用 `utf-8` 且 `errors="ignore"`。`chunk_document` 的区间是 `range(0, len - 300, 300)`，余数被丢掉。`Document.meta` 把状态放在 `state`，检索却读 `status`。`Retriever.search` 在凑满 top-k 之后才按排除名单过滤，并把 `hit.doc_id` 写成排序列表里另一条的文档号。`SessionStore` 用一份列表保存全部会话。
+- 修复：commit `e8ed102`。中文改为二字切分，英文和数字仍按词切。缓存键加入每个知识库文件的相对路径和字节。UTF-8 严格解码失败时改按 GBK 并记警告。HTML 去掉 script、style 和标签。切块保留末尾。打分前就排除未生效或已废止的文档，不再改写 `doc_id`。元数据同时写出 `status`。每个 `session_id` 单独保留历史，规划追问时把这份历史传给 `planner.plan`。
+- 回归测试：同一文件修后 8 项通过。另有一项英文赔偿邮件被中文名录挤出 top-5 的测试；只给含 “credit note” 的文档在问句带“赔”时加权后，检索测试 10 passed，`pytest tests` 为 40 passed。
+- 重建：`python -m kbqa.rebuild` 仍保留 18290 行。索引变为 35 篇文档、131 个片段（修复前 111，多出来的是被丢掉的文末切块）。告警包括 `KB-062` 不是 UTF-8、已按 GBK 读取，以及跳过 `README.md`。
+- 公开题：先跑 `--only retrieval` 为 14.00/15.00，只有 R04 失败，top-5 没有 `KB-022`。加权之后重跑为 15.00/15.00。没有配置模型 Key，`llm_mode` 为 mock。
+
 ## 还未处理
 
-检索排序、问答、多轮、拒答和前端都没有改。全量公开题库还没有在这次修复后重跑。
+问答、多轮、拒答、安全、前端和全量公开题还没有在这次检索修复后跑完。LLM preflight 还没有执行。
