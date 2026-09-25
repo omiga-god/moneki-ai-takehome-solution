@@ -30,6 +30,10 @@ foreach ($item in @("data", "knowledge_base", "starter", "eval", "docs")) {
     if (Test-Path -LiteralPath $destination) {
         throw "$item already exists. Import only once; inspect existing files before replacing anything."
     }
+}
+
+foreach ($item in @("data", "knowledge_base", "starter", "eval", "docs")) {
+    $destination = Join-Path $projectRoot $item
     Copy-Item -LiteralPath (Join-Path $source $item) -Destination $destination -Recurse
 }
 
