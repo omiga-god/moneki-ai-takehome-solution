@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 from .sanitize import split_sentences
 from .tokenizer import tokenize
+from .chunker import Chunk
 
 #: 契约 §5：一条 quote 不超过 400 个字符。
 MAX_QUOTE = 400
@@ -114,10 +115,16 @@ class UnitIndex:
         seen: set[str] = set()
         cursor = 0
         index = self.index
+        # 检索块用于召回，不用于定义事实句的边界。固定 300 字会把目标、
+        # 原因和限制条件切开，且 CRLF/LF 会改变切口；引用从完整原文拆句。
+        chunks = index.chunks_of(doc_id)
+        source = index.texts.get(doc_id)
+        if source:
+            chunks = [Chunk(doc_id, doc_id + "#document", source, source, heading=index.docs_meta.get(doc_id, {}).get("title", ""))]
         headings: set[str] = set()
-        for chunk in index.chunks_of(doc_id):
+        for chunk in chunks:
             headings.update(part.strip() for part in chunk.heading.split(" > ") if part.strip())
-        for chunk in index.chunks_of(doc_id):
+        for chunk in chunks:
             context = set(tokenize(chunk.heading))
             for canonical in index.aliases.strict_mentions(chunk.heading):
                 context.update(tokenize(canonical))
