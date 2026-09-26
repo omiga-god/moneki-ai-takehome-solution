@@ -419,6 +419,7 @@ meter::-webkit-meter-optimum-value {
   margin-left:8px;
   color:var(--primary)}
 .chat article {
+  flex-shrink:0;
   padding:16px;
   border-radius:12px;
   font-size:13px}
@@ -431,6 +432,16 @@ meter::-webkit-meter-optimum-value {
 .chat .user {
   background:var(--soft);
   margin-left:40px}
+.chat-navigation {
+  display:flex;
+  justify-content:center}
+.chat-navigation button {
+  margin-top:10px;
+  color:var(--primary);
+  background:var(--soft)}
+.chat:focus-visible {
+  outline:3px solid #6082ed;
+  outline-offset:3px}
 .chat .assistant {
   background:#f7f9fc}
 .chat p {

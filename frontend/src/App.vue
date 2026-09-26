@@ -30,6 +30,40 @@ const sessionId = ref('')
 const question = ref('')
 const sending = ref(false)
 const messages = ref<{ role: 'user' | 'assistant'; text: string; detail?: ChatResponse }[]>([])
+const chatEl = ref<HTMLDivElement | null>(null)
+const awayFromLatest = ref(false)
+const unreadReply = ref(false)
+
+function nearChatBottom() {
+  const el = chatEl.value
+  return !el || el.scrollHeight - el.clientHeight - el.scrollTop <= 48
+}
+
+function onChatScroll() {
+  awayFromLatest.value = !nearChatBottom()
+  if (!awayFromLatest.value) unreadReply.value = false
+}
+
+function scrollToLatest() {
+  const el = chatEl.value
+  // Only move the message pane, not the page or keyboard focus. Instant scrolling
+  // also avoids animation races when a fast reply follows the outgoing message.
+  if (el) el.scrollTop = el.scrollHeight
+  awayFromLatest.value = false
+  unreadReply.value = false
+}
+
+async function appendMessage(message: (typeof messages.value)[number], forceFollow = false) {
+  // Measure before adding DOM height. Readers above the bottom keep their place.
+  const follow = forceFollow || nearChatBottom()
+  messages.value.push(message)
+  await nextTick()
+  if (follow) scrollToLatest()
+  else {
+    awayFromLatest.value = true
+    unreadReply.value = true
+  }
+}
 const traceText = ref('还没有 trace。')
 const traceSteps = ref<{ step: string; took_ms?: number; detail: unknown }[]>([])
 const traceCalls = ref<unknown[]>([])
@@ -68,6 +102,9 @@ function newConversation() {
   if (sending.value) return
   sessionId.value = crypto.randomUUID()
   messages.value = []
+  awayFromLatest.value = false
+  unreadReply.value = false
+  void nextTick(scrollToLatest)
   traceSteps.value = []
   traceCalls.value = []
   traceErrors.value = []
@@ -144,14 +181,14 @@ async function ask() {
   const text = question.value.trim()
   if (!text || sending.value) return
   question.value = ''
-  messages.value.push({ role: 'user', text })
   sending.value = true
+  await appendMessage({ role: 'user', text }, true)
   try {
     const reply = await api.chat(sessionId.value, text)
-    messages.value.push({ role: 'assistant', text: reply.answer, detail: reply })
+    await appendMessage({ role: 'assistant', text: reply.answer, detail: reply })
     void showTrace(reply.trace_id)
   } catch (error) {
-    messages.value.push({ role: 'assistant', text: error instanceof Error ? error.message : '问答失败' })
+    await appendMessage({ role: 'assistant', text: error instanceof Error ? error.message : '问答失败' })
   } finally {
     sending.value = false
   }
@@ -261,7 +298,7 @@ watch([start, end, storeId], () => {
       </section>
       <section class="card wide assistant-card" id="assistant">
         <div class="card-heading"><h2>经营助手</h2><button :disabled="sending" @click="newConversation">新对话</button></div>
-        <div class="chat" role="log" aria-label="经营问答记录" aria-live="polite">
+        <div ref="chatEl" class="chat" role="log" aria-label="经营问答记录" aria-live="polite" tabindex="0" @scroll.passive="onChatScroll">
           <div v-if="!messages.length" class="chat-empty"><div class="assistant-symbol" aria-hidden="true">m.</div><h3>让数据回答你的问题</h3><p>查询销售表现、查阅内部制度，或将两者结合分析。<br>回答附带数据证据与文档出处。</p><div class="suggestions"><button v-for="sample in suggestions" :key="sample" @click="question = sample">{{ sample }} <span aria-hidden="true">↗</span></button></div></div>
           <article v-for="(message, index) in messages" :key="index" :class="message.role">
             <span class="message-label">{{ message.role === 'user' ? '你' : 'MONEKI 助手' }}</span><p>{{ message.text }}</p>
@@ -279,6 +316,9 @@ watch([start, end, storeId], () => {
             </details>
             <button v-if="message.detail" @click="showTrace(message.detail.trace_id)">查看本次追踪</button>
           </article>
+        </div>
+        <div class="chat-navigation" aria-live="polite">
+          <button v-if="awayFromLatest" type="button" @click="scrollToLatest">{{ unreadReply ? '有新回复 · 回到最新' : '回到最新' }}</button>
         </div>
         <p v-if="sending" role="status" class="muted">正在查询数据与相关文档…</p><form class="ask" @submit.prevent="ask">
           <input v-model="question" aria-label="向经营助手提问" maxlength="4000" placeholder="例如：7 月净营业额是多少？" />
