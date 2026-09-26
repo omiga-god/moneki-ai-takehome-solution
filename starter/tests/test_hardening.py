@@ -160,3 +160,27 @@ def test_chinese_adjacent_entity_codes_keep_scope(client):
     spaced = client.post("/api/chat", json={"question": "618 当天 S02 牛肉poke卖了多少份，达到目标了吗？"}).json()
     assert compact["data_evidence"] == spaced["data_evidence"]
     assert compact["data_evidence"][0]["params"]["store_id"] == "S02"
+
+
+def test_target_followup_cannot_apply_one_day_goal_to_another_month(client):
+    first = client.post("/api/chat", json={"session_id": "target-date", "question": "618当天S02牛肉poke卖了多少份，达到目标了吗？"}).json()
+    assert first["answer_type"] == "hybrid"
+    followup = client.post("/api/chat", json={"session_id": "target-date", "question": "那7月呢？"}).json()
+    assert followup["answer_type"] == "data"
+    assert "无法判断是否达标" in followup["answer"]
+    assert not followup["citations"]
+    assert followup["data_evidence"][0]["params"]["start"] == "2026-07-01"
+
+
+def test_notice_and_database_price_disagreement_is_not_claimed_consistent(client, monkeypatch):
+    from kbqa import server
+    current = server.service()
+    original = current.tools.unit_price_check
+    def changed(*args, **kwargs):
+        result = original(*args, **kwargs)
+        result["latest_price"] = 123.45
+        return result
+    monkeypatch.setattr(current.tools, "unit_price_check", changed)
+    reply = client.post("/api/chat", json={"question": "牛肉poke现在的售价是多少？"}).json()
+    assert "123.45" in reply["answer"]
+    assert "与通知一致" not in reply["answer"]
