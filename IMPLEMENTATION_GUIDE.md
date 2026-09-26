@@ -4,7 +4,7 @@
 
 目标是完成 Moneki.ai 的四关作业：经营数据看板、修复官方 RAG starter、数据库与文档混合问答、可调试追踪与评测回归。官方[题目 README](https://github.com/MorrisPRC/moneki-ai-takehome/blob/main/README.md)、[API 契约](https://github.com/MorrisPRC/moneki-ai-takehome/blob/main/docs/API_CONTRACT.md)和[评测说明](https://github.com/MorrisPRC/moneki-ai-takehome/blob/main/eval/README.md)高于本指南；发现差异时按官方文件执行并在 README 记录取舍。
 
-当前目录只是骨架。**先导入官方仓库，再阅读实际文件。**不要把本指南当成已验证的缺陷清单，也不要让模型凭描述补造数据库或 35 份文档。
+本文件保留的是框架阶段的实施计划。官方数据已导入、实现已推进，**当前状态和启动方式以根目录 README、EVAL_REPORT 和 DEBUG_LOG 为准**；不要重新导入并覆盖修复后的代码。下文不是已验证的缺陷清单，不可凭描述补造数据库或文档。
 
 ## 1. 第一轮：建立可复现基线
 

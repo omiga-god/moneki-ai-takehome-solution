@@ -50,12 +50,12 @@
 
 ## 最终版本
 
-- 运行时间：2026-09-26 16:30:47（北京时间）
-- 后端代码 commit：`45239dd`（在其后仅更新交付文档及前端错误状态）
+- 运行时间：2026-09-26 16:38:42（北京时间）
+- 后端代码 commit：`d15e655`
 - 命令：根目录 `.\starter\.venv\Scripts\python.exe scripts/verify.py eval`
 - 模型与关键配置：没有真实 Key，`llm_mode=mock`，固定今天 2026-09-01；脚本创建全新临时清洗库/索引，官方完整 55 题串行执行。
 - 总分：**100.00 / 100.00，55/55 全绿**。
-- 耗时：中位数 0.03 秒、最大 0.12 秒，合计 1.5 秒。
+- 耗时：中位数 0.03 秒、最大 0.13 秒，合计 1.7 秒。
 - 原始报告：[verification/public-eval.md](verification/public-eval.md)。
 
 | 类别 | 得分 | 全绿题数 |
@@ -73,7 +73,7 @@
 
 ## 其他验证
 
-- `python -m pytest starter/tests -q`：**68 passed**。包含临时数据清洗、真实检索与缓存、会话隔离、SQL 写保护、异常 trace、模型证据、总超时、异常请求、日期边界、中文紧邻编号、目标适用时间及价格冲突。存在一条 Starlette 的 httpx 测试客户端弃用提醒，不影响结果。
+- `python -m pytest starter/tests -q`：**70 passed**。包含临时数据清洗、真实检索与缓存、会话隔离、SQL 写保护、异常 trace、模型证据、总超时、异常请求、日期边界、中文紧邻编号、目标适用时间、价格冲突和 LF/CRLF 事实句一致性。存在一条 Starlette 的 httpx 测试客户端弃用提醒，不影响结果。
 - `scripts/verify.py preflight`：后端 `fdf0506`，2026-09-26 16:30:06，**14/14 通过**；60 次模型请求、44 次工具结果回传、32 次问答，最长 120.20 秒。原始报告：[verification/preflight.md](verification/preflight.md)。之后的目标时间和价格语义修复不改变 HTTP/工具协议；最终 GitHub Actions 会再次全量执行。
 - 前端 `npm run build`：TypeScript 检查和 Vite 构建成功。按需引入 ECharts 后主包约 573 KB（gzip 200 KB），仍有大于 500 KB 的性能提醒。
 - npm audit（官方 registry）：0 个已知漏洞。ECharts 已升级 6.1.0；Python 环境 pip-audit 在升级 pip 后同样无已知漏洞，`pip check` 正常。
@@ -82,5 +82,7 @@
 - 当前跟踪文件及 Git 历史的常见 API Key/私钥模式扫描未发现命中。该模式扫描不是全面的密钥或安全审计。
 
 ## 结果的边界
+
+首次 Linux CI 在 `4e354bc` 上只有 95/100（C07、H03 失败），暴露了 Windows 换行导致事实切块不同的问题，现已由 `d15e655` 修复；没有把 Windows 满分当作跨平台满分。云端最终结果可在 [GitHub Actions](https://github.com/omiga-god/moneki-ai-takehome-solution/actions/workflows/verify.yml) 查到，包括完整报告 artifact。
 
 公开题没有失败项。**真实 DeepSeek 全量题库未跑，隐藏题未知**；假模型 preflight 只证明协议行为。系统是本地评审用途，不具备公网身份鉴权和部署防护。不能用公开题满分或依赖扫描为零声称绝对没有漏洞。
