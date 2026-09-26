@@ -13,6 +13,7 @@ import copy
 import time
 from dataclasses import dataclass
 from typing import Any, Optional
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -178,7 +179,8 @@ class LLMClient:
 
     async def _post(self, body: dict, timeout: float) -> httpx.Response:
         # 总耗时超时也覆盖持续发送空白 keep-alive 的连接。
-        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout, connect=min(15.0, timeout))) as client:
+        local = urlsplit(self.endpoint).hostname in {"localhost", "127.0.0.1", "::1"}
+        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout, connect=min(15.0, timeout)), trust_env=not local) as client:
             return await asyncio.wait_for(client.post(
                 self.endpoint, json=body,
                 headers={"Authorization": "Bearer %s" % self.api_key, "Content-Type": "application/json"},

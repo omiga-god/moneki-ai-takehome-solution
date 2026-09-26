@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 import time
 from typing import Any, Callable
 
@@ -15,9 +14,6 @@ from .toolspec import TOOLS
 
 MAX_TOOL_ROUNDS = 4
 MAX_BAD_ARGS = 2
-_DOC_MARK = re.compile(r"[\[【]\s*(KB-\d+)\s*[\]】]")
-_NUMBER = re.compile(r"-?\d+(?:,\d{3})*(?:\.\d+)?")
-_DATE_LIKE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 SYSTEM_PROMPT = """你是一家连锁餐饮公司的经营分析助手，服务对象是运营同事。
 今天固定是 {today}，所有“现在/最近/目前”都以这一天为准。
@@ -68,10 +64,14 @@ class LiveEngine:
             )
             if not reply.tool_calls:
                 return self._finalise(plan, reply.content, evidence, retrieved, trace)
+            if len(reply.tool_calls) > 16:
+                raise LLMError("tool_loop", "单轮工具调用过多")
             # D8：assistant 消息整条追加，含 reasoning_content，否则下一轮 400。
             messages.append(reply.message)
             round_bad = 0
             for call in reply.tool_calls:
+                if time.perf_counter() >= deadline:
+                    raise LLMError("budget", "工具执行已达到总预算")
                 name = (call.get("function") or {}).get("name") or ""
                 raw = (call.get("function") or {}).get("arguments") or "{}"
                 try:
@@ -103,7 +103,7 @@ class LiveEngine:
                     {
                         "role": "tool",
                         "tool_call_id": call.get("id"),
-                        "content": json.dumps(result, ensure_ascii=False)[:6000],
+                        "content": json.dumps(result, ensure_ascii=False),
                     }
                 )
             if round_bad:
@@ -144,45 +144,3 @@ class LiveEngine:
         answer.notes.append("模型工具探索后，最终事实由数据库查询和原文抽取重新核验并渲染。")
         return answer
 
-    def _citations(self, plan: Plan, doc_ids: list[str]) -> list[dict]:
-        """引用由代码生成：从模型点名的文档里挑最相关的一句原文，保证逐字可核对。"""
-        citations = []
-        for doc_id in doc_ids[:3]:
-            if doc_id not in self.answerer.retriever.index.docs_meta:
-                continue
-            ranked = self.answerer.facts.rank(plan.search_query or plan.standalone, doc_id, 1)
-            if not ranked:
-                continue
-            citation = self.answerer.facts.cite(doc_id, ranked[0][1].text)
-            if citation:
-                citations.append(citation)
-        return citations
-
-    def _allowed_numbers(self, plan: Plan, evidence: list[dict], citations: list[dict]) -> list[float]:
-        allowed: list[float] = []
-        for item in evidence:
-            allowed.extend(_numbers_in(json.dumps(item, ensure_ascii=False)))
-        for citation in citations:
-            allowed.extend(_numbers_in(self.answerer.retriever.index.texts.get(citation["doc_id"], "")))
-        allowed.extend(_numbers_in(plan.question))
-        allowed.extend(_numbers_in(plan.standalone))
-        if plan.window:
-            allowed.extend(_numbers_in(" ".join(plan.window)))
-        derived = []
-        for value in allowed:
-            derived.extend([round(value, 2), round(value)])
-        return sorted(set(allowed + derived))
-
-
-def _numbers_in(text: str) -> list[float]:
-    values = []
-    for match in _NUMBER.finditer(_DATE_LIKE.sub(lambda m: m.group(0).replace("-", " "), text or "")):
-        try:
-            values.append(float(match.group(0).replace(",", "")))
-        except ValueError:
-            continue
-    return values
-
-
-def _matches(value: float, allowed: list[float]) -> bool:
-    return any(abs(value - candidate) <= 0.011 for candidate in allowed)

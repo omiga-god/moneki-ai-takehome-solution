@@ -3,23 +3,33 @@
 from __future__ import annotations
 
 import json
+import re
+import threading
 from datetime import date
+from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .service import Service
+from .trace import Trace
 
 app = FastAPI(title="经营看板 + 问答服务", version="0.9.3")
 _service: Optional[Service] = None
+_service_lock = threading.Lock()
 
 
 def service() -> Service:
     global _service
     if _service is None:
-        _service = Service()
+        with _service_lock:
+            if _service is None:
+                _service = Service()
     return _service
 
 
@@ -50,13 +60,28 @@ class RetrieveRequest(BaseModel):
 def _bad_date(*values: str) -> Optional[JSONResponse]:
     for value in values:
         try:
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+                raise ValueError("invalid ISO date")
             date.fromisoformat(value)
         except (TypeError, ValueError):
             return JSONResponse(
                 status_code=400,
                 content={"error": "日期格式必须是 YYYY-MM-DD，收到 %r" % value},
             )
+    if len(values) == 2 and (values[0] > values[1] or (date.fromisoformat(values[1]) - date.fromisoformat(values[0])).days > 3660):
+        return JSONResponse(status_code=400, content={"error": "起始日期不能晚于结束日期，单次范围不能超过十年"})
     return None
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError):
+    if request.url.path != "/api/chat":
+        return await request_validation_exception_handler(request, exc)
+    current = service()
+    record = Trace(current.traces.new_id(current.settings.today.isoformat()), "[invalid request]")
+    record.error("request_validation", exc)
+    current.traces.save(record)
+    return JSONResponse(status_code=200, content={"answer": "请求格式不正确，请发送包含 question 的 JSON 对象。", "answer_type": "refusal", "citations": [], "data_evidence": [], "trace_id": record.trace_id})
 
 
 @app.get("/api/health")
@@ -91,7 +116,7 @@ def metrics_top_products(
     start: str = Query(...),
     end: str = Query(...),
     store_id: Optional[str] = None,
-    limit: int = 10,
+    limit: int = Query(default=10, ge=1, le=100),
 ):
     bad = _bad_date(start, end)
     return bad or service().tools.top_products(start, end, store_id, limit)
@@ -130,3 +155,9 @@ def data_quality() -> dict:
         "data_period": current.data_period,
         "kb_warnings": current.index.warnings,
     }
+
+
+# npm run build 后可由同一个本地后端提供看板，无需另起前端服务器。
+_frontend = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+if (_frontend / "index.html").is_file():
+    app.mount("/", StaticFiles(directory=_frontend, html=True), name="dashboard")

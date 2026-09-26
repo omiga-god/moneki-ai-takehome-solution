@@ -152,7 +152,7 @@ class Catalog:
     def find_store(self, text: str) -> tuple[Optional[str], Optional[str]]:
         """返回 (store_id, 未知门店编号)。问到不存在的门店时第二项非空。"""
         lowered = normalise(text)
-        for code in re.findall(r"\bs\d{1,2}\b", lowered):
+        for code in re.findall(r"(?<![a-z0-9])s\d{1,2}(?![a-z0-9])", lowered):
             upper = code.upper()
             if upper in self.store_ids():
                 return upper, None
@@ -173,7 +173,7 @@ class Catalog:
 
     def find_product(self, text: str) -> tuple[Optional[str], Optional[str]]:
         lowered = normalise(text)
-        for code in re.findall(r"\bp\d{1,2}\b", lowered):
+        for code in re.findall(r"(?<![a-z0-9])p\d{1,2}(?![a-z0-9])", lowered):
             upper = code.upper()
             if upper in {product["product_id"] for product in self.products}:
                 return upper, None

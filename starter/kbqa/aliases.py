@@ -154,7 +154,7 @@ class AliasTable:
         extra: list[str] = []
         lowered = normalise(text)
         mentioned = list(self.mentions(text))
-        for code in re.findall(r"\bs\d{2}\b", lowered):
+        for code in re.findall(r"(?<![a-z0-9])s\d{2}(?![a-z0-9])", lowered):
             canonical = self.by_store_code(code)
             if canonical and canonical not in mentioned:
                 mentioned.append(canonical)

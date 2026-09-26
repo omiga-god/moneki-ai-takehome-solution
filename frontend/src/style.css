@@ -40,4 +40,14 @@ h1 { font-size: clamp(32px, 4vw, 52px); line-height: 1.1; letter-spacing: -.04em
 .ask button { border: 0; border-radius: 10px; background: #267562; color: #fff; padding: 8px 14px; font: inherit; }
 .trace { max-height: 360px; overflow: auto; font-size: 12px; white-space: pre-wrap; background: #f7f8f4; border-radius: 12px; padding: 12px; }
 .muted { color: #87948e; }
+.card { min-width: 0; }
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
+th, td { padding: 8px 4px; text-align: right; border-bottom: 1px solid #edf1eb; }
+th:first-child, td:first-child { text-align: left; }
+summary { cursor: pointer; margin: 12px 0; font-size: 13px; overflow-wrap: anywhere; }
+button { cursor: pointer; border: 1px solid #c9d8cf; border-radius: 8px; padding: 6px 10px; background: #edf6ef; color: #19302b; }
+button:disabled { opacity: .6; cursor: wait; }
+.chat p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.ask input { min-width: 0; }
 @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } .wide { grid-column: auto; } .header, .filter-bar { flex-direction: column; } .shell { padding: 24px 16px; } }

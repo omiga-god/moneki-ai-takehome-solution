@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+from datetime import date
+import sqlite3
 import time
 from typing import Any, Optional
 
@@ -116,6 +118,10 @@ class Service:
             if key.startswith(("start", "end")) or key == "date":
                 if not _ISO_DATE.match(text):
                     return {"error": "参数 %s 必须是 YYYY-MM-DD，收到 %r" % (key, value)}
+                try:
+                    date.fromisoformat(text)
+                except ValueError:
+                    return {"error": "参数 %s 不是有效日期" % key}
             cleaned[key] = text
         for key in schema.get("required", []):
             if key not in cleaned:
@@ -124,7 +130,7 @@ class Service:
             if name == "search_kb":
                 return self.retrieve(cleaned["query"], cleaned.get("top_k", 5))
             return getattr(self.tools, name)(**cleaned)
-        except (TypeError, ValueError) as exc:
+        except (TypeError, ValueError, sqlite3.Error) as exc:
             return {"error": "工具 %s 执行失败：%s" % (name, exc)}
 
     # -- 问答 -------------------------------------------------------------------
@@ -190,10 +196,22 @@ class Service:
             self.settings.llm_model,
             timeout=self.settings.llm_timeout,
         )
+        def contextual_tool(name, params):
+            if name != "search_kb":
+                return self.run_tool(name, params)
+            try:
+                top_k = max(1, min(20, int(params.get("top_k", 5))))
+                query = str(params.get("query", plan.search_query))
+                started_search = time.perf_counter()
+                found = self.retriever.search(query, top_k=top_k, as_of=plan.as_of, store_id=plan.store_id, year=plan.year, window=plan.window, historical=bool(plan.slots.get("historical")))
+                trace.step("search_live", found.as_trace(), started=started_search)
+                return {"results": [hit.as_result() for hit in found.ranked]}
+            except (TypeError, ValueError) as exc:
+                return {"error": str(exc)}
         engine = LiveEngine(
             client,
             self.answerer,
-            self.run_tool,
+            contextual_tool,
             self.settings.today.isoformat(),
             self.data_period,
             budget=self.settings.chat_budget,

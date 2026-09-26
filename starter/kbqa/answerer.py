@@ -55,8 +55,9 @@ class Answerer(HybridAnswers):
         if trace is not None:
             trace.step("tool", {"tool": name, "params": params, "result": result}, started=started)
         trimmed = result
-        if name == "daily_metrics" and len(result.get("days", [])) > 31:
-            trimmed = {"days": result["days"][:31], "days_total": len(result["days"])}
+        if name == "daily_metrics" and len(result.get("days", [])) > 7:
+            # 与 describe_daily 展示的七天一致；完整时间序列保留在 trace 和看板。
+            trimmed = {"days": result["days"][:7], "days_total": len(result["days"])}
         evidence.append({"tool": name, "params": params, "result": trimmed})
         return result
 

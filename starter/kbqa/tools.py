@@ -52,6 +52,9 @@ class DataTools:
             self._local.conn = None
 
     def _where(self, start: str, end: str, store_id=None, product_id=None) -> tuple[str, list]:
+        first, last = date.fromisoformat(start), date.fromisoformat(end)
+        if first > last or (last - first).days > 3660:
+            raise ValueError("起止日期顺序错误或查询范围超过十年")
         # KB-001 与契约 §2：start、end 都是闭区间。
         clause = ["date >= ?", "date <= ?"]
         params: list[Any] = [start, end]
@@ -183,6 +186,8 @@ class DataTools:
                     "aov": round2(Decimal(net_cents) / 100 / orders) if orders else None,
                 }
             )
+            if cursor == last:
+                break
             cursor += timedelta(days=1)
         return {"days": days}
 

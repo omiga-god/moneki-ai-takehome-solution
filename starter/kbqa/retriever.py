@@ -55,6 +55,7 @@ class Hit:
             "chunk_id": self.chunk_id,
             "score": round(self.score, 4),
             "text": self.text,
+            "padded": self.padded,
         }
 
 
@@ -202,7 +203,7 @@ class Retriever:
         import re
 
         found = []
-        for code in re.findall(r"\bs\d{2}\b", query.lower()):
+        for code in re.findall(r"(?<![a-z0-9])s\d{2}(?![a-z0-9])", query.lower()):
             canonical = self.index.aliases.by_store_code(code)
             if canonical:
                 found.append(canonical)
@@ -308,6 +309,13 @@ class Retriever:
                     break
                 taken.add(position)
                 hits.append(self._hit(position, score, filtered, padded=True))
+            # 极大的 k 可能超过全部有效片段；归档片段只能作为显式标记的补位。
+            for position in range(len(self.index.chunks)):
+                if len(hits) >= top_k:
+                    break
+                if position not in taken:
+                    hits.append(self._hit(position, 0.0, filtered, padded=True))
+                    taken.add(position)
             # 契约 §4 还要求“按相关性从高到低”：补齐之后整体再排一次。
             # 每篇文档只占一格是挑片段的规则，不是排序的规则。
             hits.sort(key=lambda hit: -hit.score)

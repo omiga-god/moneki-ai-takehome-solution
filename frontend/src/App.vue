@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref, watch } from 'vue'
-import * as echarts from 'echarts'
+import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import * as echarts from 'echarts/core'
+import { LineChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import { api, type ChatResponse, type DailyPoint, type DataQuality, type StoreOption, type Summary, type TopProduct } from './api'
+echarts.use([LineChart, GridComponent, TooltipComponent, CanvasRenderer])
 
 const serviceStatus = ref('检查中…')
 const start = ref('')
@@ -14,12 +18,58 @@ const quality = ref<DataQuality | null>(null)
 const errorText = ref('')
 const chartEl = ref<HTMLDivElement | null>(null)
 let chart: echarts.ECharts | null = null
+let boardRequest = 0
+const loading = ref(false)
+const resizeChart = () => chart?.resize()
 
 const sessionId = ref('')
 const question = ref('')
 const sending = ref(false)
 const messages = ref<{ role: 'user' | 'assistant'; text: string; detail?: ChatResponse }[]>([])
 const traceText = ref('还没有 trace。')
+const traceSteps = ref<{ step: string; took_ms?: number; detail: unknown }[]>([])
+const traceCalls = ref<unknown[]>([])
+const traceErrors = ref<unknown[]>([])
+const traceLoading = ref(false)
+let traceRequest = 0
+
+// 保留服务端完整调试记录，UI 不显示模型的私有思考过程。
+function visibleTrace(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(visibleTrace)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).filter(([key]) => !['reasoning_content', 'raw_reasoning', 'raw_response', 'prompt'].includes(key)).map(([key, item]) => [key, visibleTrace(item)]))
+  }
+  return value
+}
+
+async function showTrace(id: string) {
+  const request = ++traceRequest
+  traceLoading.value = true
+  try {
+    const trace = await api.trace(id)
+    if (request !== traceRequest) return
+    const safe = visibleTrace(trace) as typeof trace
+    traceSteps.value = safe.steps
+    traceCalls.value = safe.llm_calls
+    traceErrors.value = safe.errors
+    traceText.value = JSON.stringify(safe, null, 2)
+  } catch (error) {
+    if (request === traceRequest) traceText.value = error instanceof Error ? error.message : '追踪加载失败'
+  } finally {
+    if (request === traceRequest) traceLoading.value = false
+  }
+}
+
+function newConversation() {
+  if (sending.value) return
+  sessionId.value = crypto.randomUUID()
+  messages.value = []
+  traceSteps.value = []
+  traceCalls.value = []
+  traceErrors.value = []
+  traceText.value = '还没有 trace。'
+  ++traceRequest
+}
 
 const removedLabels: Record<string, string> = {
   '1_unparseable_date': '日期无法解析',
@@ -49,6 +99,12 @@ function draw(days: DailyPoint[]) {
 
 async function loadBoard() {
   if (!start.value || !end.value) return
+  const request = ++boardRequest
+  if (start.value > end.value) {
+    errorText.value = '起始日期不能晚于结束日期'
+    return
+  }
+  loading.value = true
   errorText.value = ''
   try {
     const [sum, daily, top] = await Promise.all([
@@ -56,12 +112,15 @@ async function loadBoard() {
       api.daily(filter()),
       api.topProducts(filter()),
     ])
+    if (request !== boardRequest) return
     summary.value = sum
     products.value = top.products
     await nextTick()
     draw(daily.days)
   } catch (error) {
-    errorText.value = error instanceof Error ? error.message : '指标加载失败'
+    if (request === boardRequest) errorText.value = error instanceof Error ? error.message : '指标加载失败'
+  } finally {
+    if (request === boardRequest) loading.value = false
   }
 }
 
@@ -74,8 +133,7 @@ async function ask() {
   try {
     const reply = await api.chat(sessionId.value, text)
     messages.value.push({ role: 'assistant', text: reply.answer, detail: reply })
-    const trace = await api.trace(reply.trace_id)
-    traceText.value = JSON.stringify(trace, null, 2)
+    void showTrace(reply.trace_id)
   } catch (error) {
     messages.value.push({ role: 'assistant', text: error instanceof Error ? error.message : '问答失败' })
   } finally {
@@ -96,11 +154,17 @@ onMounted(async () => {
     quality.value = qualityReport
     start.value = health.data_period.start
     end.value = health.data_period.end
-    await loadBoard()
   } catch {
     serviceStatus.value = '后端尚未启动'
   }
-  window.addEventListener('resize', () => chart?.resize())
+  window.addEventListener('resize', resizeChart)
+})
+
+onUnmounted(() => {
+  ++boardRequest
+  ++traceRequest
+  window.removeEventListener('resize', resizeChart)
+  chart?.dispose()
 })
 
 watch([start, end, storeId], () => {
@@ -135,6 +199,7 @@ watch([start, end, storeId], () => {
       净营业额 {{ summary.net_revenue }} 元 · 订单 {{ summary.orders }} · 客单价 {{ summary.aov ?? '—' }} · 销量 {{ summary.qty }} · 退款 {{ summary.refund_amount }} 元
     </p>
     <p v-if="errorText" class="error">{{ errorText }}</p>
+    <p v-if="loading" role="status" class="muted">正在更新看板…</p>
 
     <div class="grid">
       <section class="card wide">
@@ -143,13 +208,11 @@ watch([start, end, storeId], () => {
       </section>
       <section class="card">
         <div class="card-heading"><h2>Top 10 商品</h2><span>按净营业额</span></div>
-        <ol class="rank">
-          <li v-for="item in products" :key="item.product_id">
-            <span>{{ item.product_name }}</span>
-            <strong>{{ item.net_revenue }}</strong>
-          </li>
-          <li v-if="!products.length" class="muted">这个范围内没有销售记录。</li>
-        </ol>
+        <div class="table-scroll"><table>
+          <thead><tr><th>商品</th><th>营业额（元）</th><th>销量</th></tr></thead>
+          <tbody><tr v-for="item in products" :key="item.product_id"><td>{{ item.product_name }}</td><td>{{ item.net_revenue.toFixed(2) }}</td><td>{{ item.qty }}</td></tr></tbody>
+        </table></div>
+        <p v-if="!products.length" class="muted">这个范围内没有销售记录。</p>
       </section>
       <section class="card">
         <div class="card-heading"><h2>数据质量</h2><span>清洗</span></div>
@@ -162,7 +225,7 @@ watch([start, end, storeId], () => {
         </dl>
       </section>
       <section class="card wide">
-        <div class="card-heading"><h2>经营助手</h2><span>{{ sessionId.slice(0, 8) }}</span></div>
+        <div class="card-heading"><h2>经营助手</h2><button :disabled="sending" @click="newConversation">新对话</button><span>{{ sessionId.slice(0, 8) }}</span></div>
         <div class="chat">
           <p v-if="!messages.length" class="muted">问题会带上当前会话，追问不会串到别的会话。</p>
           <article v-for="(message, index) in messages" :key="index" :class="message.role">
@@ -175,16 +238,28 @@ watch([start, end, storeId], () => {
             <p v-if="message.detail?.data_evidence.length" class="muted">
               数据证据 {{ message.detail.data_evidence.length }} 条 · {{ message.detail.answer_type }} · {{ message.detail.trace_id }}
             </p>
+            <details v-for="(evidence, evidenceIndex) in message.detail?.data_evidence" :key="evidenceIndex">
+              <summary>查看查询证据 · {{ evidence.tool || 'SQL' }}</summary>
+              <pre class="trace">{{ JSON.stringify(evidence, null, 2) }}</pre>
+            </details>
+            <button v-if="message.detail" @click="showTrace(message.detail.trace_id)">查看本次追踪</button>
           </article>
         </div>
         <form class="ask" @submit.prevent="ask">
-          <input v-model="question" placeholder="例如：7 月净营业额是多少？" />
-          <button type="submit" :disabled="sending">发送</button>
+          <input v-model="question" aria-label="向经营助手提问" maxlength="4000" placeholder="例如：7 月净营业额是多少？" />
+          <button type="submit" :disabled="sending">{{ sending ? '思考中…' : '发送' }}</button>
         </form>
       </section>
       <section class="card">
         <div class="card-heading"><h2>调试追踪</h2><span>trace</span></div>
-        <pre class="trace">{{ traceText }}</pre>
+        <p v-if="traceLoading" role="status">正在加载追踪…</p>
+        <details v-for="(step, index) in traceSteps" :key="index">
+          <summary>{{ step.step }} <span v-if="step.took_ms != null">· {{ step.took_ms }} ms</span></summary>
+          <pre class="trace">{{ JSON.stringify(step.detail, null, 2) }}</pre>
+        </details>
+        <details v-for="(call, index) in traceCalls" :key="`llm-${index}`"><summary>模型请求与输出 · {{ index + 1 }}</summary><pre class="trace">{{ JSON.stringify(call, null, 2) }}</pre></details>
+        <pre v-if="traceErrors.length" class="trace error">{{ JSON.stringify(traceErrors, null, 2) }}</pre>
+        <details><summary>完整追踪 JSON（隐藏思考内容）</summary><pre class="trace">{{ traceText }}</pre></details>
       </section>
     </div>
   </div>

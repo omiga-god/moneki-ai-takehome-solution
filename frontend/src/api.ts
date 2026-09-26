@@ -1,4 +1,4 @@
-// Contract shapes only. Business behavior belongs in the implementation phase.
+// API contracts shared by dashboard, chat evidence and trace panels.
 export type AnswerType = 'data' | 'doc' | 'hybrid' | 'refusal' | 'clarify'
 
 export interface MetricsFilter {
@@ -80,7 +80,7 @@ export interface ChatResponse {
 }
 
 async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(path)
+  const response = await fetch(path, { signal: AbortSignal.timeout(20000) })
   if (!response.ok) throw new Error(`HTTP ${response.status}: ${path}`)
   return response.json() as Promise<T>
 }
@@ -108,7 +108,7 @@ export const api = {
     getJson<{ products: TopProduct[] }>(`/api/metrics/top_products?${query(filter)}&limit=10`),
   stores: () => getJson<{ stores: StoreOption[] }>('/api/stores'),
   dataQuality: () => getJson<DataQuality>('/api/data_quality'),
-  trace: (id: string) => getJson<Record<string, unknown>>(`/api/trace/${encodeURIComponent(id)}`),
+  trace: (id: string) => getJson<{ steps: { step: string; took_ms?: number; detail: unknown }[]; llm_calls: unknown[]; errors: unknown[] }>(`/api/trace/${encodeURIComponent(id)}`),
   retrieve: async (queryText: string, topK = 5): Promise<{ results: RetrievalResult[] }> => {
     const response = await fetch('/api/retrieve', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -119,6 +119,7 @@ export const api = {
   },
   chat: async (sessionId: string, question: string): Promise<ChatResponse> => {
     const response = await fetch('/api/chat', {
+      signal: AbortSignal.timeout(185000),
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId, question }),
     })
