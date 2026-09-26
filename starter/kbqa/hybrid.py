@@ -11,6 +11,7 @@ from .planner import Plan
 from .retriever import Hit, SearchResult
 from .schemas import Answer
 from .tokenizer import normalise
+from .timeparse import parse_time
 
 _TARGET = re.compile(r"目标[^。；\n]{0,12}?(\d[\d,]*(?:\.\d+)?)\s*(份|杯|单|件|元|%)")
 _PRICE = re.compile(r"(?:调整为|调为|现价|活动价|售价为|售价|价格为)\s*[¥￥]?\s*(\d+(?:\.\d+)?)")
@@ -36,10 +37,11 @@ class HybridAnswers:
             product_id=plan.product_id,
         )
         result = self._search(plan, window=window, trace=trace)
-        target, unit, citation, meta = self._find_target(plan, result)
+        target, unit, citation, meta = self._find_target(plan, result, window)
         scope = self._scope(plan, window)
-        actual = metrics["qty"] if unit in ("份", "杯", "件", "") else metrics["net_revenue"]
-        head = render.describe_metrics(metrics, scope, "qty" if unit in ("份", "杯", "件", "") else "net_revenue")
+        metric = "orders" if unit == "单" else "net_revenue" if unit == "元" else "qty"
+        actual = metrics[metric]
+        head = render.describe_metrics(metrics, scope, metric)
         if target is None:
             return Answer(
                 answer=head + "知识库里没有找到对应的目标值，无法判断是否达标。",
@@ -68,13 +70,34 @@ class HybridAnswers:
             data_evidence=evidence,
         )
 
-    def _find_target(self, plan: Plan, result: SearchResult):
+    def _find_target(self, plan: Plan, result: SearchResult, window=None):
+        window = window or plan.window
         for hit in self.answerable_hits(plan, result):
-            if self.retriever.index.docs_meta.get(hit.doc_id, {}).get("estimates_only"):
+            meta = self.retriever.index.docs_meta.get(hit.doc_id, {})
+            if meta.get("estimates_only"):
                 continue  # KB-001 §5.2：周报、纪要里的数字是估算，不能当目标或答案
+            scoped_stores = set(meta.get("stores") or [])
+            if meta.get("stores_explicit") and scoped_stores and (
+                (plan.store_id and plan.store_id not in scoped_stores)
+                or (not plan.store_id and scoped_stores != set(self.catalog.store_ids()))
+            ):
+                continue  # 单店目标不能拿全店或其他门店的销量比较。
+            title_time = parse_time(meta.get("title", ""), self.today)
+            if title_time.windows and tuple(window or ()) not in title_time.windows:
+                continue
             for sentence in self.facts.sentences(hit.doc_id):
                 match = _TARGET.search(sentence)
-                if not match:
+                if not match or match.group(2) == "%":
+                    continue
+                anchor = meta.get("effective_from")
+                if not window:
+                    continue
+                if "当天" in sentence and (not anchor or tuple(window) != (anchor, anchor)):
+                    continue
+                if ("首月" in sentence or "第一个月" in sentence) and (not anchor or window[0][:7] != anchor[:7]):
+                    continue
+                explicit = parse_time(sentence, date.fromisoformat(anchor) if anchor else self.today)
+                if explicit.windows and tuple(window) not in explicit.windows:
                     continue
                 if plan.product_id:
                     name = self.catalog.product_name(plan.product_id)
@@ -178,11 +201,14 @@ class HybridAnswers:
         ]
         if latest is not None:
             pieces.append(
-                "数据库里最近一次成交的实收单价是 %s 元，与通知一致。" % render.money(latest)
+                "数据库里最近一次成交的实收单价是 %s 元，%s。" % (
+                    render.money(latest),
+                    "与通知一致" if abs(float(latest) - price) < 0.01 else "与通知价格不同，不能将通知价当作实际成交价",
+                )
             )
         if lag is not None and abs(float(lag) - price) >= 0.01:
             pieces.append(
-                "注意 products 维表里的建档价仍是 %s 元，由财务月底统一更新，属于维表滞后，不能当成交价。"
+                "注意 products 维表里的建档价是 %s 元，与通知价不同，不能当实际成交价。"
                 % render.money(lag)
             )
         return Answer(
