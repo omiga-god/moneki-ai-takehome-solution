@@ -68,6 +68,7 @@ function newConversation() {
   traceCalls.value = []
   traceErrors.value = []
   traceText.value = '还没有 trace。'
+  traceLoading.value = false
   ++traceRequest
 }
 
@@ -101,6 +102,10 @@ async function loadBoard() {
   if (!start.value || !end.value) return
   const request = ++boardRequest
   if (start.value > end.value) {
+    loading.value = false
+    summary.value = null
+    products.value = []
+    chart?.clear()
     errorText.value = '起始日期不能晚于结束日期'
     return
   }
@@ -118,7 +123,12 @@ async function loadBoard() {
     await nextTick()
     draw(daily.days)
   } catch (error) {
-    if (request === boardRequest) errorText.value = error instanceof Error ? error.message : '指标加载失败'
+    if (request === boardRequest) {
+      errorText.value = error instanceof Error ? error.message : '指标加载失败'
+      summary.value = null
+      products.value = []
+      chart?.clear()
+    }
   } finally {
     if (request === boardRequest) loading.value = false
   }
@@ -195,7 +205,7 @@ watch([start, end, storeId], () => {
         </select>
       </label>
     </section>
-    <p v-if="summary" class="summary-line">
+    <p v-if="summary && !loading && !errorText" class="summary-line">
       净营业额 {{ summary.net_revenue }} 元 · 订单 {{ summary.orders }} · 客单价 {{ summary.aov ?? '—' }} · 销量 {{ summary.qty }} · 退款 {{ summary.refund_amount }} 元
     </p>
     <p v-if="errorText" class="error">{{ errorText }}</p>

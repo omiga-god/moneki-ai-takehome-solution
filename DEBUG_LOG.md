@@ -110,3 +110,15 @@ metrics 6.00/6.00，health 1.00/1.00。没有重跑其余公开题，总分仍�
 - 根因：目标抽取只认数字和商品，未校验目标句、标题的时间和门店适用范围；价格解释是固定模板。
 - 修复：目标仅在标题/目标句的时间与查询窗口一致时使用，校验单店范围；区分订单目标、金额目标、销量目标，比例目标证据不足时不猜。先比较实收价和通知价，再说明一致或不一致；移除没有对应证据的固定原因。首次修复仍从备货段落捡到目标数，失败测试促使把文档标题时间也作为硬约束。
 - 回归：`test_target_followup_cannot_apply_one_day_goal_to_another_month`、`test_notice_and_database_price_disagreement_is_not_claimed_consistent` 修后均通过。
+
+### 最终代码定位与提交
+
+| 内容 | 修复提交 | 当前定位 |
+|---|---|---|
+| 文件级只读 / SQL 授权 | `2a1b51e` | `starter/kbqa/cleaning.py:103`、`starter/kbqa/tools.py:85` |
+| 证据渲染 / 模型总超时 | `2a1b51e`、`fdf0506` | `starter/kbqa/live.py:134`、`starter/kbqa/llm.py:180` |
+| API 边界 / 前端追踪 / 可复现预检 | `fdf0506` | `starter/kbqa/server.py`、`frontend/src/App.vue`、`scripts/verify.py` |
+| 中文实体范围 | `fdf0506` | `starter/kbqa/entities.py:152` |
+| 活动目标与价格一致性 | `45239dd` | `starter/kbqa/hybrid.py:73` |
+
+后端 `45239dd` 全量测试 68 passed，公开题 100/100。全新 archive 目录、新 venv、新 node_modules 下安装与运行也通过。依赖与性能提醒、真实模型未验证的边界见 EVAL_REPORT。
