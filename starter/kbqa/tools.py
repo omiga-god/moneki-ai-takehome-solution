@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import re
 import sqlite3
+import re
+import time
 import threading
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -79,16 +80,34 @@ class DataTools:
         )
 
     def run_sql(self, sql: str) -> dict:
-        """只读查询。写入语句直接拒绝，也不提交事务。"""
-        text = (sql or "").strip()
-        if not re.match(r"(?is)^(select|with)\b", text) or re.search(
-            r"(?is)\b(insert|update|delete|drop|alter|create|replace|attach|detach|pragma|vacuum)\b",
-            text,
-        ):
-            return {"error": "只允许只读 SELECT", "sql": text, "rows": [], "row_count": 0}
-        cursor = self.conn.execute(text)
-        rows = [dict(row) for row in cursor.fetchall()] if cursor.description else []
-        return {"sql": text, "rows": rows[:50], "row_count": len(rows)}
+        """单条只读查询：独立连接、SQLite 授权器、时间和结果大小上限。"""
+        if not isinstance(sql, str) or len(sql) > 12000 or not re.match(r"^\s*(SELECT|WITH)\b", sql, re.I) or not re.search(r"\bFROM\b", sql, re.I):
+            return {"error": "只允许含 FROM 的单条 SELECT/WITH 查询"}
+        permitted = {sqlite3.SQLITE_SELECT, sqlite3.SQLITE_READ, sqlite3.SQLITE_FUNCTION, sqlite3.SQLITE_RECURSIVE}
+        def authorize(action, arg1, arg2, db, source):
+            if action not in permitted:
+                return sqlite3.SQLITE_DENY
+            if action == sqlite3.SQLITE_READ and arg1 not in {"sales_clean", "stores", "products"}:
+                return sqlite3.SQLITE_DENY
+            if action == sqlite3.SQLITE_FUNCTION and (arg2 or "").lower() in {"load_extension", "readfile", "writefile"}:
+                return sqlite3.SQLITE_DENY
+            return sqlite3.SQLITE_OK
+        conn = open_readonly(self.db_path)
+        deadline = time.perf_counter() + 2.0
+        conn.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, 65536)
+        conn.set_authorizer(authorize)
+        conn.set_progress_handler(lambda: int(time.perf_counter() >= deadline), 1000)
+        try:
+            import json
+            fetched = conn.execute(sql).fetchmany(51)
+            rows = [dict(row) for row in fetched[:50]]
+            if len(json.dumps(rows, ensure_ascii=False).encode("utf-8")) > 4096:
+                return {"error": "查询结果过大，请聚合或减少列和行数"}
+            return {"sql": sql, "rows": rows, "row_count": len(rows), "truncated": len(fetched) > 50}
+        except (sqlite3.Error, TypeError, ValueError) as exc:
+            return {"error": "只读 SQL 查询失败：%s" % exc}
+        finally:
+            conn.close()
 
     def stores(self) -> list[dict]:
         return [dict(r) for r in self.conn.execute("SELECT * FROM stores ORDER BY store_id")]

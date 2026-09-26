@@ -94,7 +94,7 @@ class LiveEngine:
                     continue
                 started = time.perf_counter()
                 result = self.run_tool(name, params)
-                trace.step("tool", {"tool": name, "params": params}, started=started)
+                trace.step("tool", {"tool": name, "params": params, "result": result}, started=started)
                 if name == "search_kb":
                     retrieved[json.dumps(params, ensure_ascii=False)] = result.get("results", [])
                 elif "error" not in result:
@@ -134,38 +134,15 @@ class LiveEngine:
     def _finalise(
         self, plan: Plan, content: str, evidence: list[dict], retrieved: dict, trace
     ) -> Answer:
-        doc_ids = []
-        for match in _DOC_MARK.finditer(content):
-            if match.group(1) not in doc_ids:
-                doc_ids.append(match.group(1))
-        text = _DOC_MARK.sub("", content).strip()
-        citations = self._citations(plan, doc_ids)
-        allowed = self._allowed_numbers(plan, evidence, citations)
-        bad = [value for value in _numbers_in(text) if not _matches(value, allowed)]
-        if bad:
-            trace.step("number_check_failed", {"unmatched": bad[:5]})
-            fallback = self.answerer.answer(plan, trace)
-            fallback.notes.append(
-                "模型回答里的数字 %s 在工具结果里找不到，已改用按工具结果渲染的模板回答。"
-                % "、".join(str(value) for value in bad[:5])
-            )
-            return fallback
-        if not text:
+        if not content.strip():
             raise LLMError("empty_content", "模型最终回答为空")
-        if evidence and citations:
-            answer_type = "hybrid"
-        elif evidence:
-            answer_type = "data"
-        elif citations:
-            answer_type = "doc"
-        else:
-            answer_type = "refusal"
-        return Answer(
-            answer=text,
-            answer_type=answer_type,
-            citations=citations,
-            data_evidence=evidence,
-        )
+        # 数字集合相等不能证明语义相等（目标销量也可能被误称为营业额）。
+        # 模型负责工具探索；最终答案由同一规划器的可信查询与原文抽取器重算。
+        # 不把未经验证的模型散文拼入答案，模型原始输出完整保留在 trace。
+        trace.step("grounded_render", {"policy": "query_results_and_verbatim_excerpts", "model_tools": len(evidence), "model_searches": len(retrieved)})
+        answer = self.answerer.answer(plan, trace)
+        answer.notes.append("模型工具探索后，最终事实由数据库查询和原文抽取重新核验并渲染。")
+        return answer
 
     def _citations(self, plan: Plan, doc_ids: list[str]) -> list[dict]:
         """引用由代码生成：从模型点名的文档里挑最相关的一句原文，保证逐字可核对。"""

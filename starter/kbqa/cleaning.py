@@ -62,6 +62,8 @@ def parse_amount(value: Optional[str]) -> tuple[Optional[int], str]:
         cents = (Decimal(text) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
     except (InvalidOperation, ValueError):
         return None, "bad"
+    if not cents.is_finite():
+        return None, "bad"
     return int(cents), "ok"
 
 
@@ -74,7 +76,7 @@ def parse_qty(value: Optional[str]) -> Optional[int]:
         number = Decimal(text)
     except (InvalidOperation, ValueError):
         return None
-    if number != number.to_integral_value():
+    if not number.is_finite() or number != number.to_integral_value():
         return None
     return int(number)
 
@@ -99,8 +101,9 @@ class CleaningReport:
 
 
 def open_readonly(path: Path) -> sqlite3.Connection:
-    """打开数据库。"""
-    conn = sqlite3.connect(path.as_posix(), check_same_thread=False)
+    """在 SQLite 文件层禁止写入；不存在的路径不能隐式创建数据库。"""
+    conn = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
+    conn.execute("PRAGMA query_only=ON")
     conn.row_factory = sqlite3.Row
     return conn
 

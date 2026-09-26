@@ -14,6 +14,7 @@ from .planner import Plan
 from .retriever import Retriever, SearchResult
 from .schemas import Answer
 from .tokenizer import content_tokens, tokenize
+from .trace import CURRENT_TRACE
 
 #: 拒答闸门。两个互补的信号：
 #: `vocab` —— 问题里的词有多少在整个知识库的词表里出现过（“工资”“下雨”一个都找不到）；
@@ -48,7 +49,11 @@ class Answerer(HybridAnswers):
     # -- 基础设施 ---------------------------------------------------------------
 
     def _call(self, evidence: list[dict], name: str, **params) -> dict:
+        started = time.perf_counter()
         result = getattr(self.tools, name)(**params)
+        trace = CURRENT_TRACE.get()
+        if trace is not None:
+            trace.step("tool", {"tool": name, "params": params, "result": result}, started=started)
         trimmed = result
         if name == "daily_metrics" and len(result.get("days", [])) > 31:
             trimmed = {"days": result["days"][:31], "days_total": len(result["days"])}

@@ -20,7 +20,7 @@ from .retriever import Retriever
 from .sessions import SessionStore
 from .toolspec import TOOL_NAMES, TOOLS
 from .tools import DataTools
-from .trace import Trace, TraceStore
+from .trace import CURRENT_TRACE, Trace, TraceStore
 
 _ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _INT_PARAMS = {"top_k", "limit"}
@@ -155,7 +155,11 @@ class Service:
             started = time.perf_counter()
             plan = self.planner.plan(question, history)
             trace.step("plan", plan.as_trace(), started=started)
-            answer = self._run_engine(plan, trace, history)
+            token = CURRENT_TRACE.set(trace)
+            try:
+                answer = self._run_engine(plan, trace, history)
+            finally:
+                CURRENT_TRACE.reset(token)
             self.sessions.append(
                 session_id,
                 {
@@ -167,7 +171,8 @@ class Service:
                 },
             )
             return answer
-        except Exception:  # noqa: BLE001 - 不管里面出什么事，接口都得给个像样的回答
+        except Exception as exc:  # noqa: BLE001 - 契约要求失败也返回结构化回答
+            trace.error("chat", exc)
             return Answer(
                 answer="抱歉，我暂时无法回答。",
                 answer_type="refusal",

@@ -8,6 +8,8 @@
 from __future__ import annotations
 
 import json
+import asyncio
+import copy
 import time
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -84,19 +86,12 @@ class LLMClient:
             "messages": len(messages),
             "tools": len(tools or []),
             # 契约 §6：trace 里要看得到发给模型的最终提示词。
-            "prompt": _preview(json.dumps(messages, ensure_ascii=False)),
+            "prompt": json.dumps(messages, ensure_ascii=False),
+            "request": copy.deepcopy(body),
         }
         try:
-            response = httpx.post(
-                self.endpoint,
-                json=body,
-                headers={
-                    "Authorization": "Bearer %s" % self.api_key,
-                    "Content-Type": "application/json",
-                },
-                timeout=httpx.Timeout(timeout or self.timeout, connect=15.0),
-            )
-        except httpx.TimeoutException as exc:
+            response = asyncio.run(self._post(body, timeout or self.timeout))
+        except (httpx.TimeoutException, TimeoutError) as exc:
             record.update(error="timeout", detail=str(exc))
             self._note(on_call, record, started)
             raise LLMError("timeout", "等待模型响应超时：%s" % exc) from exc
@@ -106,6 +101,7 @@ class LLMClient:
             raise LLMError("transport", "调用模型失败：%s" % exc) from exc
 
         record["status"] = response.status_code
+        record["raw_response"] = response.text
         if response.status_code != 200:
             # D13：400/401/402/422/429/500/503 都在这里变成结构化错误。
             detail = _error_detail(response)
@@ -121,6 +117,11 @@ class LLMClient:
             self._note(on_call, record, started)
             raise LLMError("bad_json", "模型返回的不是合法 JSON：%s" % response.text[:200]) from exc
 
+        record["response"] = payload
+        if not isinstance(payload, dict):
+            record.update(error="bad_json", detail="响应必须是 JSON 对象")
+            self._note(on_call, record, started)
+            raise LLMError("bad_json", "模型响应必须是 JSON 对象")
         choices = payload.get("choices") or []
         if not choices:
             record.update(error="no_choice")
@@ -138,8 +139,8 @@ class LLMClient:
             has_reasoning=bool(message.get("reasoning_content")),
             usage=payload.get("usage"),
             # 契约 §6：模型原始输出也要留痕。思考过程只留在 trace 里，不进任何对外字段。
-            raw_content=_preview(content),
-            raw_reasoning=_preview(message.get("reasoning_content") or ""),
+            raw_content=content,
+            raw_reasoning=message.get("reasoning_content") or "",
         )
         self._note(on_call, record, started)
 
@@ -164,15 +165,24 @@ class LLMClient:
         on_call: Optional[Any] = None,
     ) -> LLMReply:
         """暂时性故障重试一次，且只在时间预算够的时候重试。"""
-        per_call = min(self.timeout, budget) if budget else self.timeout
+        deadline = time.perf_counter() + (budget if budget is not None else self.timeout)
+        per_call = min(self.timeout, max(0.001, deadline - time.perf_counter()))
         try:
             return self.chat(messages, tools, timeout=per_call, on_call=on_call)
         except LLMError as first:
-            remaining = (budget - per_call) if budget else self.timeout
+            remaining = deadline - time.perf_counter()
             if not first.retryable or remaining < 5:
                 raise
             time.sleep(min(1.0, max(0.0, remaining / 60)))
-            return self.chat(messages, tools, timeout=min(self.timeout, remaining), on_call=on_call)
+            return self.chat(messages, tools, timeout=min(self.timeout, max(0.001, deadline - time.perf_counter())), on_call=on_call)
+
+    async def _post(self, body: dict, timeout: float) -> httpx.Response:
+        # 总耗时超时也覆盖持续发送空白 keep-alive 的连接。
+        async with httpx.AsyncClient(timeout=httpx.Timeout(timeout, connect=min(15.0, timeout))) as client:
+            return await asyncio.wait_for(client.post(
+                self.endpoint, json=body,
+                headers={"Authorization": "Bearer %s" % self.api_key, "Content-Type": "application/json"},
+            ), timeout=timeout)
 
     @staticmethod
     def _note(on_call, record: dict, started: float) -> None:

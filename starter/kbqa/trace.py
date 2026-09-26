@@ -6,9 +6,12 @@ import threading
 import time
 import traceback
 from collections import OrderedDict
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Optional
+
+CURRENT_TRACE: ContextVar = ContextVar("current_trace", default=None)
 
 
 @dataclass
