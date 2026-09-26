@@ -96,3 +96,55 @@ def test_data_chat_trace_contains_executed_results(client):
     assert data["data_evidence"]
     trace = client.get("/api/trace/" + data["trace_id"]).json()
     assert any(s["step"] == "tool" and "result" in s["detail"] for s in trace["steps"])
+
+
+def test_retrieve_large_k_marks_ineligible_padding(client):
+    from kbqa import server
+    service = server.service()
+    result = service.retriever.search("退款政策", top_k=len(service.index.chunks))
+    assert len(result.hits) == len(service.index.chunks)
+    excluded = {item["doc_id"] for item in result.filtered}
+    assert excluded
+    assert all(hit.doc_id not in excluded for hit in result.ranked)
+    assert all(hit.as_result().get("padded") for hit in result.hits if hit.doc_id in excluded)
+
+
+@pytest.mark.parametrize("body", ["{broken", "[]", '"question"'])
+def test_malformed_chat_has_trace_and_refusal(client, body):
+    response = client.post("/api/chat", content=body, headers={"Content-Type": "application/json"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["answer_type"] == "refusal"
+    trace = client.get("/api/trace/" + data["trace_id"]).json()
+    assert trace["errors"]
+
+
+@pytest.mark.parametrize("start,end", [("20260901", "2026-09-02"), ("2026-09-02", "2026-09-01"), ("0001-01-01", "9999-12-31")])
+def test_invalid_or_unbounded_dates_rejected(client, start, end):
+    response = client.get("/api/metrics/daily", params={"start": start, "end": end})
+    assert response.status_code == 400
+
+
+def test_chat_daily_evidence_stays_inside_contract(client):
+    import json
+    from kbqa import server
+    payload = client.post("/api/chat", json={"question": "2026年7月每天的营业额"}).json()
+    assert payload["answer_type"] in {"data", "clarify"}
+    for item in payload["data_evidence"]:
+        assert len(json.dumps(item["result"], ensure_ascii=False).encode("utf-8")) <= 4096
+    # The official numeric counter includes dates; verify against that definition.
+    import re
+    assert sum(len(re.findall(r"-?\d+(?:\.\d+)?", json.dumps(item["result"], ensure_ascii=False))) for item in payload["data_evidence"]) <= 60
+
+
+def test_llm_wall_clock_deadline(monkeypatch):
+    import asyncio
+    import time
+    from kbqa.llm import LLMError
+    async def never_finishes(*args, **kwargs):
+        await asyncio.sleep(1)
+    monkeypatch.setattr(httpx.AsyncClient, "post", never_finishes)
+    started = time.monotonic()
+    with pytest.raises(LLMError, match="timeout"):
+        LLMClient("http://example.invalid", "test", "test").chat([], timeout=0.02)
+    assert time.monotonic() - started < 0.7
