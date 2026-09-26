@@ -148,3 +148,15 @@ def test_llm_wall_clock_deadline(monkeypatch):
     with pytest.raises(LLMError, match="timeout"):
         LLMClient("http://example.invalid", "test", "test").chat([], timeout=0.02)
     assert time.monotonic() - started < 0.7
+
+
+def test_chinese_adjacent_entity_codes_keep_scope(client):
+    from kbqa import server
+    catalog = server.service().catalog
+    assert catalog.find_store("看看S02的营业额") == ("S02", None)
+    assert catalog.find_product("商品P06卖了多少") == ("P06", None)
+    assert catalog.find_store("看看S99的营业额")[1] == "S99"
+    compact = client.post("/api/chat", json={"question": "618当天S02牛肉poke卖了多少份，达到目标了吗？"}).json()
+    spaced = client.post("/api/chat", json={"question": "618 当天 S02 牛肉poke卖了多少份，达到目标了吗？"}).json()
+    assert compact["data_evidence"] == spaced["data_evidence"]
+    assert compact["data_evidence"][0]["params"]["store_id"] == "S02"
